@@ -73,7 +73,8 @@ export default function ChartToolPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/analyze-chart', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/analyze-chart`, {
         method: 'POST',
         body: formData,
       });

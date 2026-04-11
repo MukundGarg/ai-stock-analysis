@@ -60,7 +60,8 @@ export default function PDFToolPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/analyze-pdf', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/analyze-pdf`, {
         method: 'POST',
         body: formData,
       });
