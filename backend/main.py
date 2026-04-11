@@ -15,6 +15,8 @@ import dotenv
 
 from pdf_parser import extract_text_from_pdf, clean_and_truncate_text, get_pdf_metadata
 from ai_analyzer import analyze_financial_report, create_fallback_analysis
+from chart_processor import analyze_chart
+from pattern_detector import detect_pattern
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -49,6 +51,14 @@ class AnalysisResponse(BaseModel):
     key_positives: list[str]
     risks: list[str]
     future_outlook: str
+
+
+class ChartAnalysisResponse(BaseModel):
+    """Response model for chart pattern analysis"""
+    pattern: str
+    signal: str
+    confidence: str
+    description: str
 
 
 class ErrorResponse(BaseModel):
@@ -161,16 +171,85 @@ async def analyze_pdf(file: UploadFile = File(...)):
                 print(f"Warning: Could not delete temporary file: {str(e)}")
 
 
+@app.post("/analyze-chart", response_model=ChartAnalysisResponse)
+async def analyze_chart_endpoint(file: UploadFile = File(...)):
+    """
+    Analyze a stock chart image for technical patterns.
+
+    Accepts a chart image (PNG, JPG, JPEG) and returns detected patterns.
+
+    Args:
+        file: Chart image file upload
+
+    Returns:
+        ChartAnalysisResponse with:
+        - pattern: Name of detected pattern
+        - signal: Bullish/Bearish/Neutral
+        - confidence: High/Medium/Low
+        - description: Explanation of pattern
+
+    Raises:
+        HTTPException: If file is invalid or analysis fails
+    """
+
+    # Validate file type
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    allowed_extensions = {".png", ".jpg", ".jpeg"}
+    file_ext = os.path.splitext(file.filename.lower())[1]
+
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Only PNG, JPG, and JPEG images are supported"
+        )
+
+    # Validate file size (max 5MB)
+    content = await file.read()
+    file_size = len(content)
+
+    if file_size > 5 * 1024 * 1024:  # 5MB
+        raise HTTPException(
+            status_code=413,
+            detail="File is too large. Maximum size is 5MB"
+        )
+
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    try:
+        # Process the chart image
+        analysis_data = analyze_chart(content)
+
+        # Detect pattern from analysis
+        pattern_result = detect_pattern(analysis_data)
+
+        return ChartAnalysisResponse(**pattern_result)
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error analyzing chart: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Server error during chart analysis: {str(e)}"
+        )
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API info"""
     return {
         "name": "StockSense AI Backend",
         "version": "1.0.0",
-        "description": "PDF Financial Report Analysis API",
+        "description": "AI-powered Stock Market Learning Platform API",
         "endpoints": {
             "health": "/health",
-            "analyze_pdf": "/analyze-pdf (POST)"
+            "analyze_pdf": "/analyze-pdf (POST)",
+            "analyze_chart": "/analyze-chart (POST)"
         },
         "docs": "/docs"
     }
