@@ -1,39 +1,52 @@
 """
-Sentiment Analyzer Module
-
-Uses VADER sentiment analysis to analyze news articles and determine market sentiment.
+Sentiment analysis — VADER baseline + Indian-market keyword themes + optional LLM synthesis.
 """
 
-from typing import Dict, Any, List
-from nltk.sentiment import SentimentIntensityAnalyzer
-import nltk
-import re
+from __future__ import annotations
 
-# Download required VADER lexicon
+import json
+import os
+import re
+from typing import Any
+
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+
 try:
     nltk.data.find("vader_lexicon")
 except LookupError:
     nltk.download("vader_lexicon", quiet=True)
 
-# Initialize VADER analyzer (singleton)
 sia = SentimentIntensityAnalyzer()
 
+# Lexical boosts for India-specific financial vocabulary (applied on top of VADER compound)
+_INDIA_POS = {
+    "nifty", "sensex", "record", "high", "upgrade", "beat", "growth", "inflows",
+    "rate cut", "acquisition", "expansion", "guidance", "upside",
+}
+_INDIA_NEG = {
+    "selloff", "crash", "scam", "fraud", "default", "outflows", "rate hike",
+    "inflation", "slowdown", "ban", "probe", "penalty", "loss", "layoff",
+}
 
-def analyze_sentiment(articles: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+def _india_lexical_adjustment(text: str) -> float:
+    """Small delta in [-0.15, 0.15] based on India-relevant tokens."""
+    t = text.lower()
+    delta = 0.0
+    for w in _INDIA_POS:
+        if w in t:
+            delta += 0.02
+    for w in _INDIA_NEG:
+        if w in t:
+            delta -= 0.02
+    return max(-0.15, min(0.15, delta))
+
+
+def analyze_sentiment(articles: list[dict[str, Any]]) -> dict[str, Any]:
     """
-    Analyze sentiment of news articles using VADER.
-
-    Args:
-        articles: List of articles with title, description, content fields
-
-    Returns:
-        Dictionary with:
-        - overall_sentiment: "Bullish", "Bearish", or "Neutral"
-        - sentiment_score: -1.0 to 1.0 (compound VADER score)
-        - key_reasons: List of main themes extracted from articles
-        - article_sentiments: List of sentiments for each article
+    VADER per article + mild India keyword adjustment, then aggregate.
     """
-
     if not articles:
         return {
             "overall_sentiment": "Neutral",
@@ -42,50 +55,43 @@ def analyze_sentiment(articles: List[Dict[str, Any]]) -> Dict[str, Any]:
             "article_sentiments": [],
         }
 
-    # Score each article
-    article_sentiments = []
-    scores = []
+    article_sentiments: list[dict[str, Any]] = []
+    scores: list[float] = []
 
     for article in articles:
-        # Combine title and description for analysis
         text_to_analyze = f"{article.get('title', '')} {article.get('description', '')}"
-
         if not text_to_analyze.strip():
             continue
 
-        # Get VADER sentiment
         scores_dict = sia.polarity_scores(text_to_analyze)
-        compound_score = scores_dict["compound"]  # -1 to 1
-        scores.append(compound_score)
+        compound = scores_dict["compound"] + _india_lexical_adjustment(text_to_analyze)
+        compound = max(-1.0, min(1.0, compound))
+        scores.append(compound)
 
-        # Determine sentiment label
-        if compound_score > 0.2:
+        if compound > 0.12:
             sentiment = "Bullish"
-        elif compound_score < -0.2:
+        elif compound < -0.12:
             sentiment = "Bearish"
         else:
             sentiment = "Neutral"
 
-        article_sentiments.append({
-            "title": article.get("title", ""),
-            "sentiment_score": round(compound_score, 3),
-            "sentiment": sentiment,
-        })
+        article_sentiments.append(
+            {
+                "title": article.get("title", ""),
+                "sentiment_score": round(compound, 3),
+                "sentiment": sentiment,
+            }
+        )
 
-    # Calculate overall sentiment
-    if scores:
-        average_score = sum(scores) / len(scores)
-    else:
-        average_score = 0.0
+    average_score = sum(scores) / len(scores) if scores else 0.0
 
-    if average_score > 0.1:
+    if average_score > 0.08:
         overall_sentiment = "Bullish"
-    elif average_score < -0.1:
+    elif average_score < -0.08:
         overall_sentiment = "Bearish"
     else:
         overall_sentiment = "Neutral"
 
-    # Extract key themes/reasons
     key_reasons = extract_themes(articles)
 
     return {
@@ -96,73 +102,118 @@ def analyze_sentiment(articles: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def extract_themes(articles: List[Dict[str, Any]]) -> List[str]:
-    """
-    Extract key themes/reasons from article titles and descriptions.
-
-    Args:
-        articles: List of articles
-
-    Returns:
-        List of 2-3 key themes found in the news
-    """
-
-    # Define keywords that indicate themes
-    theme_keywords = {
-        # Positive themes
-        "growth": ["growth", "surge", "rally", "bull", "strong", "rising", "upbeat", "gain", "profit"],
-        "earnings": ["earnings", "profit", "revenue", "dividend", "beat", "performance", "results"],
-        "innovation": ["innovation", "new product", "launch", "breakthrough", "technology", "ai", "advance"],
-
-        # Negative themes
-        "decline": ["decline", "fall", "collapse", "crash", "lost", "loss", "slump", "down", "bear"],
-        "economic": ["recession", "inflation", "slowdown", "economic", "gdp", "unemployment", "crisis"],
-        "concern": ["concern", "risk", "warning", "threat", "danger", "troubled", "struggle", "weak"],
-
-        # Neutral/Market themes
-        "regulation": ["regulation", "sec", "law", "compliance", "government", "policy"],
-        "competition": ["competition", "rival", "market share", "compete"],
-        "market": ["market", "sector", "index", "volatility", "trading"],
+def extract_themes(articles: list[dict[str, Any]]) -> list[str]:
+    """Theme buckets tuned for Indian equities + global macro spillovers."""
+    theme_keywords: dict[str, list[str]] = {
+        "rates_rbi": ["rbi", "repo", "rate hike", "rate cut", "liquidity", "mpc", "inflation", "cpi", "wpi"],
+        "flows_fii_dii": ["fii", "dii", "foreign institutional", "inflows", "outflows", "fpi"],
+        "india_indices": ["nifty", "sensex", "bank nifty", "banknifty", "midcap", "smallcap"],
+        "currency_crude": ["rupee", "inr", "usd/inr", "forex", "crude", "oil", "brent"],
+        "policy_sebi": ["sebi", "regulator", "circular", "compliance", "listing", "insider"],
+        "earnings": ["earnings", "results", "quarter", "ebitda", "margin", "guidance", "profit", "revenue"],
+        "growth": ["growth", "rally", "surge", "gain", "upgrade", "beat", "strong"],
+        "stress": ["loss", "default", "downgrade", "selloff", "probe", "fraud", "warning", "ban"],
+        "global_spillover": ["fed", "powell", "treasury", "us markets", "s&p", "nasdaq", "china", "europe"],
+        "sector": ["bank", "it sector", "pharma", "auto", "metal", "real estate", "fmcg", "energy"],
     }
 
     theme_counts = {theme: 0 for theme in theme_keywords}
-
-    # Count keyword occurrences
     combined_text = ""
     for article in articles:
         combined_text += f" {article.get('title', '')} {article.get('description', '')} "
-
     combined_text_lower = combined_text.lower()
 
     for theme, keywords in theme_keywords.items():
         for keyword in keywords:
-            # Count occurrences (case-insensitive)
-            count = len(re.findall(r"\b" + re.escape(keyword) + r"\b", combined_text_lower))
-            theme_counts[theme] += count
+            theme_counts[theme] += len(
+                re.findall(r"\b" + re.escape(keyword) + r"\b", combined_text_lower)
+            )
 
-    # Get top 3 themes
     sorted_themes = sorted(theme_counts.items(), key=lambda x: x[1], reverse=True)
-    top_themes = [theme for theme, count in sorted_themes[:3] if count > 0]
+    top = [theme for theme, count in sorted_themes[:4] if count > 0]
 
-    # Format theme names to be more readable
-    readable_themes = []
     theme_descriptions = {
-        "growth": "Positive market movement indicators",
-        "earnings": "Company earnings and financial results",
-        "innovation": "New products and technological advances",
-        "decline": "Market decline and price drops",
-        "economic": "Economic conditions and slowdown",
-        "concern": "Market concerns and risks",
-        "regulation": "Regulatory and government actions",
-        "competition": "Competitive pressures",
-        "market": "Market trends and volatility",
+        "rates_rbi": "RBI / interest-rate and inflation narrative",
+        "flows_fii_dii": "FII/DII flows and positioning",
+        "india_indices": "Indian benchmark indices (Nifty/Sensex) tone",
+        "currency_crude": "INR and crude — cost and macro pressure",
+        "policy_sebi": "SEBI / policy / compliance headlines",
+        "earnings": "Corporate earnings and results season",
+        "growth": "Growth and positive momentum themes",
+        "stress": "Credit, governance, or downside stress",
+        "global_spillover": "Global markets and Fed/geopolitics spillover",
+        "sector": "Sector-specific drivers",
     }
 
-    for theme in top_themes:
-        readable_themes.append(theme_descriptions.get(theme, theme))
+    readable = [theme_descriptions.get(theme, theme) for theme in top]
+    if len(readable) < 2:
+        readable.append("General market headlines and sentiment mix")
+    return readable[:5]
 
-    # If less than 2 themes found, add generic description
-    if len(readable_themes) < 2:
-        readable_themes.append("Current market sentiment and dynamics")
 
-    return readable_themes[:3]  # Return max 3 themes
+def enrich_sentiment_with_llm(
+    query: str,
+    articles: list[dict[str, Any]],
+    overall_sentiment: str,
+    sentiment_score: float,
+    key_reasons: list[str],
+) -> dict[str, str]:
+    """
+    Produce reasoning + key_drivers tuned for Indian retail readers.
+    Falls back to simple strings on error.
+    """
+    headlines = "\n".join(f"- {a.get('title', '')[:180]}" for a in articles[:6])
+    try:
+        from ai_analyzer import get_openai_client
+
+        client = get_openai_client()
+        model = os.getenv("SENTIMENT_MODEL", "gpt-4o-mini")
+
+        prompt = f"""User question: "{query}"
+
+Headlines (sample):
+{headlines}
+
+Computed tone: {overall_sentiment} (score {sentiment_score} on approx -1..1 scale)
+Theme buckets: {', '.join(key_reasons)}
+
+Write for **Indian retail investors** (NSE/BSE context). 
+Return ONLY valid JSON:
+{{"reasoning": "3-5 sentences: what the news is saying, how it connects to India markets, uncertainties", "key_drivers": ["3-5 short bullets of concrete drivers"]}}
+No buy/sell instructions; educational tone."""
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "JSON only. No markdown."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.35,
+            max_tokens=500,
+            timeout=45,
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            m = re.search(r"\{[\s\S]*\}", raw)
+            if not m:
+                raise
+            data = json.loads(m.group(0))
+        reasoning = str(data.get("reasoning", "")).strip()
+        kd = data.get("key_drivers", [])
+        if isinstance(kd, str):
+            kd = [kd]
+        key_drivers = [str(x) for x in kd][:6]
+        if not key_drivers:
+            key_drivers = list(key_reasons)[:5]
+        return {"reasoning": reasoning, "key_drivers": key_drivers}
+    except Exception as e:
+        print(f"[sentiment] LLM enrich failed: {e}")
+        return {
+            "reasoning": (
+                f"Headlines skew {overall_sentiment.lower()} for this query. "
+                "This is an automated read of news tone — verify with primary sources and your own research."
+            ),
+            "key_drivers": list(key_reasons)[:5],
+        }

@@ -10,6 +10,19 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 
+def _indian_context_boost(q: str) -> str:
+    """Widen NewsAPI queries toward Indian markets when relevant."""
+    lower = q.lower()
+    triggers = (
+        "nifty", "sensex", "nse", "bse", "india", "indian", "inr", "rupee",
+        "rbi", "sebi", "reliance", "tcs", "hdfc", "infosys", "itc", "l&t",
+        "bank nifty", "banknifty", "fii", "dii",
+    )
+    if any(t in lower for t in triggers):
+        return f"({q}) AND (India OR NSE OR BSE OR Sensex OR Nifty)"
+    return q
+
+
 async def fetch_financial_news(query: str, max_articles: int = 10) -> list[dict]:
     """
     Fetch financial news articles from NewsAPI.
@@ -39,10 +52,12 @@ async def fetch_financial_news(query: str, max_articles: int = 10) -> list[dict]
     if len(query) > 200:
         raise ValueError("Query cannot be longer than 200 characters")
 
+    boosted = _indian_context_boost(query.strip())
+
     # Prepare API request
     endpoint = "https://newsapi.org/v2/everything"
     params = {
-        "q": query,
+        "q": boosted,
         "language": "en",
         "sortBy": "publishedAt",
         "pageSize": max_articles,

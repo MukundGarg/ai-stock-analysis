@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import Providers from "@/components/Providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,8 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StockSense AI - Learn the Stock Market with AI",
-  description: "AI-powered platform to learn about stock market, financial reports, and trading patterns",
+  title: "StockSense AI — Indian Market Trading Copilot",
+  description:
+    "AI copilot for Indian markets (NSE/BSE): PDF reports, chart patterns, sentiment, and conversational help for beginners.",
 };
 
 export default function RootLayout({
@@ -30,9 +32,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-white dark:bg-black">
-        <Navbar />
-        <main className="flex-grow">{children}</main>
-        <Footer />
+        <Providers>
+          <Navbar />
+          <main className="flex-grow">{children}</main>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

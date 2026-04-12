@@ -152,8 +152,10 @@ def detect_peaks_and_valleys(image: np.ndarray, window_size: int = 20) -> Dict[s
     if vertical_projection.max() > 0:
         vertical_projection = vertical_projection / vertical_projection.max()
 
-    peaks = []
-    valleys = []
+    peaks: list[int] = []
+    valleys: list[int] = []
+    peak_intensities: list[float] = []
+    valley_intensities: list[float] = []
 
     # Detect peaks and valleys
     for i in range(window_size, len(vertical_projection) - window_size):
@@ -162,16 +164,20 @@ def detect_peaks_and_valleys(image: np.ndarray, window_size: int = 20) -> Dict[s
         # Peak: local maximum
         if vertical_projection[i] == window.max() and vertical_projection[i] > 0.5:
             peaks.append(i)
+            peak_intensities.append(float(vertical_projection[i]))
 
         # Valley: local minimum
         if vertical_projection[i] == window.min() and vertical_projection[i] < 0.5:
             valleys.append(i)
+            valley_intensities.append(float(vertical_projection[i]))
 
     return {
         "peaks_count": len(peaks),
         "valleys_count": len(valleys),
         "peak_positions": peaks,
-        "valley_positions": valleys
+        "valley_positions": valleys,
+        "peak_intensities": peak_intensities,
+        "valley_intensities": valley_intensities,
     }
 
 

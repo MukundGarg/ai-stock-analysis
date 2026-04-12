@@ -1,18 +1,18 @@
 """
-AI Analyzer Module
-
-Uses OpenAI API to analyze financial reports and provide beginner-friendly insights.
+AI Analyzer Module — OpenAI for PDF analysis and shared client access.
 """
 
-import os
+from __future__ import annotations
+
 import json
+import os
 import re
-from typing import Dict, Any
+from typing import Any
+
 from openai import OpenAI, APIError
 
 
-# Initialize OpenAI client
-def get_openai_client():
+def get_openai_client() -> OpenAI:
     """Get OpenAI client with API key from environment."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -23,156 +23,172 @@ def get_openai_client():
     return OpenAI(api_key=api_key)
 
 
-def analyze_financial_report(text: str) -> Dict[str, Any]:
+def analyze_financial_report(text: str) -> dict[str, Any]:
     """
-    Analyze financial report text using OpenAI GPT and return structured insights.
-
-    Args:
-        text: Cleaned extracted text from PDF
-
-    Returns:
-        Dictionary with analysis results containing:
-        - company_summary: Brief company overview
-        - key_positives: List of positive indicators
-        - risks: List of identified risks
-        - future_outlook: Growth potential assessment
-
-    Raises:
-        ValueError: If analysis fails
-        APIError: If OpenAI API call fails
+    Analyze financial report text; return structured beginner-friendly output.
     """
 
-    analysis_prompt = f"""You are a financial analyst helping beginners understand company financial reports.
+    analysis_prompt = f"""You are a financial analyst helping **Indian retail investors and beginners** understand company documents (annual reports, quarterly results, investor presentations, US-style 10-K/10-Q, or Indian filings).
 
-Analyze this financial report excerpt and provide insights in simple, beginner-friendly language.
+Analyze the excerpt. If the document is not in INR, still explain clearly and mention currency when relevant.
 
-Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
+Return ONLY valid JSON (no markdown) with exactly this structure:
 {{
-    "company_summary": "A 2-3 sentence summary of what the company does and its financial health",
-    "key_positives": [
-        "Positive indicator or achievement 1",
-        "Positive indicator or achievement 2",
-        "Positive indicator or achievement 3"
+    "summary": "3-5 sentence executive summary in plain English",
+    "key_insights": ["4-6 bullets of non-obvious insights from the text"],
+    "key_positives": ["3-5 strengths or positives"],
+    "risks": ["3-5 concrete risks or red flags"],
+    "opportunities": ["3-5 growth or strategic opportunities mentioned or reasonably implied"],
+    "important_extracted_data": [
+        {{"label": "metric name", "value_or_figure": "number or range if present, else best textual value", "why_it_matters": "one sentence for beginners"}}
     ],
-    "risks": [
-        "Risk or concern 1",
-        "Risk or concern 2",
-        "Risk or concern 3"
-    ],
-    "future_outlook": "1-2 sentence outlook on the company's growth potential"
+    "beginner_explanation": "Short paragraph explaining how to read this document and what a beginner should focus on next",
+    "company_summary": "2-3 sentences: what the business does and scale/context",
+    "future_outlook": "2-4 sentences on outlook, catalysts, and uncertainties"
 }}
 
-Financial Report Text:
-{text}
+Rules:
+- If a field has no basis in the text, write "Not clearly stated in excerpt" for that part rather than inventing numbers.
+- Prefer actionable *education*, not buy/sell commands.
+- Use simple language; avoid unexplained jargon.
 
-Remember to:
-- Use simple language suitable for beginners
-- Focus on what matters for investment decisions
-- If information is unclear, make reasonable inferences
-- Always return valid JSON only"""
+Financial report excerpt:
+{text}
+"""
+
+    client = get_openai_client()
+    model = os.getenv("PDF_ANALYSIS_MODEL", "gpt-4o-mini")
 
     try:
-        client = get_openai_client()
-
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful financial analyst explaining reports to beginners. Always respond with valid JSON only, no other text."
+                    "content": "You respond with valid JSON only. No markdown fences.",
                 },
-                {
-                    "role": "user",
-                    "content": analysis_prompt
-                }
+                {"role": "user", "content": analysis_prompt},
             ],
-            temperature=0.7,
-            max_tokens=1000,
-            timeout=30
+            temperature=0.35,
+            max_tokens=2200,
+            timeout=60,
         )
-
-        response_text = response.choices[0].message.content.strip()
-
-        # Parse JSON response
-        try:
-            analysis = json.loads(response_text)
-        except json.JSONDecodeError:
-            # Try to extract JSON if it's wrapped in markdown code blocks
-            json_match = re.search(r'```(?:json)?\n?(.*?)\n?```', response_text, re.DOTALL)
-            if json_match:
-                analysis = json.loads(json_match.group(1))
-            else:
-                # Try to find JSON object directly
-                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                if json_match:
-                    analysis = json.loads(json_match.group())
-                else:
-                    raise ValueError("Could not parse AI response as JSON")
-
-        # Validate structure
-        required_keys = ["company_summary", "key_positives", "risks", "future_outlook"]
-        if not all(key in analysis for key in required_keys):
-            raise ValueError("AI response missing required fields")
-
-        # Ensure lists are lists
-        if not isinstance(analysis["key_positives"], list):
-            analysis["key_positives"] = [str(analysis["key_positives"])]
-        if not isinstance(analysis["risks"], list):
-            analysis["risks"] = [str(analysis["risks"])]
-
-        # Limit to 5 items per list
-        analysis["key_positives"] = analysis["key_positives"][:5]
-        analysis["risks"] = analysis["risks"][:5]
-
-        return analysis
-
+        response_text = (response.choices[0].message.content or "").strip()
+        analysis = _parse_json_response(response_text)
+        return _validate_and_normalize_analysis(analysis)
     except APIError as e:
-        raise ValueError(f"OpenAI API error: {str(e)}")
+        raise ValueError(f"OpenAI API error: {str(e)}") from e
     except Exception as e:
-        raise ValueError(f"Error analyzing report: {str(e)}")
+        raise ValueError(f"Error analyzing report: {str(e)}") from e
 
 
-def create_fallback_analysis(text: str) -> Dict[str, Any]:
-    """
-    Create a fallback analysis if AI fails.
-    This provides basic structure without requiring API calls (for testing).
+def _parse_json_response(response_text: str) -> dict[str, Any]:
+    try:
+        return json.loads(response_text)
+    except json.JSONDecodeError:
+        json_match = re.search(r"```(?:json)?\n?(.*?)\n?```", response_text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group(1))
+        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        raise ValueError("Could not parse AI response as JSON") from None
 
-    Args:
-        text: Extracted text from PDF
 
-    Returns:
-        Dictionary with basic analysis structure
-    """
-    # Extract some basic info for fallback
+def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
+    required = [
+        "summary",
+        "key_insights",
+        "key_positives",
+        "risks",
+        "opportunities",
+        "important_extracted_data",
+        "beginner_explanation",
+        "company_summary",
+        "future_outlook",
+    ]
+    for key in required:
+        if key not in analysis:
+            raise ValueError(f"AI response missing required field: {key}")
+
+    for list_key in ("key_insights", "key_positives", "risks", "opportunities"):
+        if not isinstance(analysis[list_key], list):
+            analysis[list_key] = [str(analysis[list_key])]
+        analysis[list_key] = [str(x) for x in analysis[list_key]][:8]
+
+    raw_data = analysis["important_extracted_data"]
+    normalized_data: list[dict[str, str]] = []
+    if isinstance(raw_data, list):
+        for item in raw_data[:12]:
+            if isinstance(item, dict):
+                normalized_data.append(
+                    {
+                        "label": str(item.get("label", "Item"))[:200],
+                        "value_or_figure": str(item.get("value_or_figure", ""))[:300],
+                        "why_it_matters": str(item.get("why_it_matters", ""))[:400],
+                    }
+                )
+    analysis["important_extracted_data"] = normalized_data
+
+    for text_key in ("summary", "beginner_explanation", "company_summary", "future_outlook"):
+        analysis[text_key] = str(analysis[text_key])[:6000]
+
+    return analysis
+
+
+def create_fallback_analysis(text: str) -> dict[str, Any]:
+    """Structured fallback when the API is unavailable."""
     text_lower = text.lower()
+    key_positives: list[str] = []
+    risks: list[str] = []
+    opportunities: list[str] = []
 
-    key_positives = []
-    risks = []
-
-    # Simple heuristics
-    if "revenue" in text_lower and "increase" in text_lower:
-        key_positives.append("Revenue growth demonstrated in financial reports")
-    if "profit" in text_lower:
-        key_positives.append("Company maintains profitability")
-    if "market" in text_lower:
-        key_positives.append("Strong market presence and operations")
+    if "revenue" in text_lower and ("growth" in text_lower or "increase" in text_lower):
+        key_positives.append("Revenue growth is mentioned in the document.")
+    if "profit" in text_lower or "pat" in text_lower:
+        key_positives.append("Profitability metrics appear in the excerpt.")
+    if "ebitda" in text_lower or "margin" in text_lower:
+        key_positives.append("Margin-related discussion is present — review trend vs prior periods.")
 
     if "loss" in text_lower:
-        risks.append("Recent losses noted in financial statements")
-    if "debt" in text_lower:
-        risks.append("Notable debt levels require monitoring")
-    if "decline" in text_lower:
-        risks.append("Declining metrics in certain areas")
+        risks.append("Losses or negative results are referenced — read the full context.")
+    if "debt" in text_lower or "borrowing" in text_lower:
+        risks.append("Debt or leverage is mentioned — assess coverage and covenants in the full filing.")
+    if "litigation" in text_lower or "regulatory" in text_lower:
+        risks.append("Legal or regulatory items may need closer reading.")
 
-    # Pad if needed
+    if "expansion" in text_lower or "capacity" in text_lower:
+        opportunities.append("Expansion or capacity commentary may signal future revenue optionality.")
+    if "digital" in text_lower or "new product" in text_lower:
+        opportunities.append("New initiatives or digital themes are referenced.")
+
     while len(key_positives) < 3:
-        key_positives.append("Financial metrics need further evaluation")
+        key_positives.append("Review revenue, margins, and cash flow trends in the full report.")
     while len(risks) < 3:
-        risks.append("Market conditions require close monitoring")
+        risks.append("Read risk factors and contingent liabilities in the complete document.")
+    while len(opportunities) < 2:
+        opportunities.append("Scan management discussion for strategy and capex plans.")
+
+    summary = (
+        "We could not run the full AI model. This is a **basic scan** of the extracted text only — "
+        "upload a text-based PDF and ensure OPENAI_API_KEY is set for a complete structured analysis."
+    )
 
     return {
-        "company_summary": "Financial report analysis indicates a company with mixed signals that requires deeper analysis.",
+        "summary": summary,
+        "key_insights": [
+            "Fallback mode: insights are generic; enable AI for document-specific takeaways.",
+            "Compare this period with the prior year and with peer companies in the same sector.",
+            "Check cash flow vs profit — quality of earnings matters.",
+        ],
         "key_positives": key_positives[:5],
         "risks": risks[:5],
-        "future_outlook": "Growth prospects depend on execution and market conditions."
+        "opportunities": opportunities[:5],
+        "important_extracted_data": [],
+        "beginner_explanation": (
+            "Financial reports are long on purpose. Start with the summary, key numbers, and risk section, "
+            "then dig into notes. This automated view is educational, not advice."
+        ),
+        "company_summary": "Company context could not be reliably inferred in fallback mode.",
+        "future_outlook": "Outlook requires full AI analysis or manual reading of management commentary.",
     }

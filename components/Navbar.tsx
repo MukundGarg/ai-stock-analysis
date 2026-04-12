@@ -37,6 +37,12 @@ export default function Navbar() {
               Features
             </Link>
             <Link
+              href="/learn/india"
+              className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors font-medium"
+            >
+              India 101
+            </Link>
+            <Link
               href="/dashboard"
               className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all font-medium"
             >
@@ -76,6 +82,12 @@ export default function Navbar() {
               className="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-md font-medium"
             >
               Features
+            </Link>
+            <Link
+              href="/learn/india"
+              className="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-md font-medium"
+            >
+              India 101
             </Link>
             <Link
               href="/dashboard"

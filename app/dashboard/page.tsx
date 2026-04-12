@@ -5,19 +5,22 @@ export default function DashboardPage() {
     {
       icon: '📄',
       title: 'Upload Financial Report',
-      description: 'Upload PDF financial reports and get AI-powered explanations of all key metrics and insights.',
+      description:
+        'Structured PDF summary: insights, risks, opportunities, extracted figures, and beginner walkthrough (INR-aware).',
       href: '/dashboard/pdf',
     },
     {
       icon: '📊',
       title: 'Chart Pattern Analyzer',
-      description: 'Analyze stock chart patterns and understand potential trading signals and opportunities.',
+      description:
+        'AI vision + geometry fallback for patterns, support/resistance, trendlines, breakouts — with confidence and reasoning.',
       href: '/dashboard/chart',
     },
     {
       icon: '📈',
       title: 'Market Sentiment',
-      description: 'Track real-time market sentiment, fear & greed index, and overall market mood.',
+      description:
+        'News-driven sentiment tuned for India (Nifty, RBI, flows, INR…): drivers, reasoning, and headlines.',
       href: '/dashboard/sentiment',
     },
     {
@@ -44,7 +47,17 @@ export default function DashboardPage() {
               Dashboard
             </h1>
             <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl">
-              Access all our AI-powered tools to accelerate your stock market learning journey.
+              Indian-market-focused tools plus one <span className="font-medium text-gray-800 dark:text-gray-200">BharatTrade Copilot</span> — use the floating chat for follow-ups; it remembers your latest PDF, chart, and sentiment results.
+            </p>
+          </div>
+
+          <div className="mb-10 rounded-xl border border-indigo-200 bg-indigo-50/80 p-5 dark:border-indigo-900 dark:bg-indigo-950/40">
+            <p className="text-sm text-indigo-950 dark:text-indigo-100">
+              New to NSE/BSE? Read{' '}
+              <a href="/learn/india" className="font-medium underline">
+                India markets 101
+              </a>{' '}
+              then ask the Copilot anything (F&amp;O vs equity, timings, SEBI basics, or “what does my chart mean?”).
             </p>
           </div>
 

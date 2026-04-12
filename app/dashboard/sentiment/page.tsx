@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useCopilot } from '@/context/CopilotContext';
+import { getApiUrl } from '@/lib/api';
 import { useState } from 'react';
 
 interface NewsArticle {
@@ -15,6 +17,8 @@ interface SentimentResult {
   sentiment: string;
   sentiment_score: number;
   summary: string;
+  reasoning: string;
+  key_drivers: string[];
   key_reasons: string[];
   news_sources: NewsArticle[];
   query: string;
@@ -26,6 +30,7 @@ interface ErrorState {
 }
 
 export default function SentimentToolPage() {
+  const { setLastSentiment } = useCopilot();
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SentimentResult | null>(null);
@@ -40,10 +45,10 @@ export default function SentimentToolPage() {
       return;
     }
 
-    if (query.length > 200) {
+    if (query.length > 400) {
       setError({
         message: 'Query too long',
-        details: 'Please keep your query under 200 characters.',
+        details: 'Please keep your query under 400 characters.',
       });
       return;
     }
@@ -52,9 +57,7 @@ export default function SentimentToolPage() {
     setError(null);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      console.log(`[Sentiment] API URL: ${apiUrl}`);
-      console.log(`[Sentiment] Analyzing query: ${query}`);
+      const apiUrl = getApiUrl();
 
       const response = await fetch(`${apiUrl}/analyze-sentiment`, {
         method: 'POST',
@@ -69,11 +72,12 @@ export default function SentimentToolPage() {
         throw new Error(errorData.error || `Server error: ${response.status}`);
       }
 
-      const data: SentimentResult = await response.json();
+      const data = (await response.json()) as SentimentResult;
       setResult(data);
+      setLastSentiment(data, '/dashboard/sentiment');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = getApiUrl();
       console.error(`[Sentiment] Error:`, err);
 
       setError({
@@ -143,8 +147,8 @@ export default function SentimentToolPage() {
             📊 Market Sentiment AI
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl">
-            Ask why the market or stocks are moving. Get AI-powered insights based on
-            current news and sentiment analysis.
+            News-based sentiment with India-aware drivers (RBI, Nifty, flows, INR, sectors). Not live prices — verify
+            headlines before acting.
           </p>
         </div>
       </section>
@@ -165,7 +169,7 @@ export default function SentimentToolPage() {
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleAnalyze()}
-                        placeholder="Ask why the market or a stock is moving... e.g., 'Why is Apple stock rising?'"
+                        placeholder="e.g. Why is Nifty volatile today? HDFC Bank results sentiment"
                         className="w-full px-6 py-4 text-lg rounded-lg border-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400"
                       />
                       <button
@@ -329,17 +333,43 @@ export default function SentimentToolPage() {
                   {/* AI Summary */}
                   <div className="p-6 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                      💬 AI Analysis
+                      Summary
                     </h3>
                     <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-lg">
                       {result.summary}
                     </p>
                   </div>
 
+                  <div className="p-6 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50/40 dark:bg-indigo-950/20">
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                      Reasoning (India-aware)
+                    </h3>
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                      {result.reasoning}
+                    </p>
+                  </div>
+
+                  <div className="p-6 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                      Key drivers
+                    </h3>
+                    <ul className="space-y-3">
+                      {(result.key_drivers ?? []).map((d, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start gap-3 text-gray-700 dark:text-gray-300"
+                        >
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold mt-1">•</span>
+                          <span>{d}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
                   {/* Key Reasons */}
                   <div className="p-6 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                      🔍 Key Themes
+                      Theme tags (from headlines)
                     </h3>
                     <ul className="space-y-3">
                       {result.key_reasons.map((reason, idx) => (
@@ -417,11 +447,11 @@ export default function SentimentToolPage() {
                     💡 Try These Queries
                   </h4>
                   <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-                    <li>• Why is Apple stock rising?</li>
-                    <li>• Why is the market falling today?</li>
-                    <li>• What about tech sector sentiment?</li>
-                    <li>• Why is Tesla stock down?</li>
-                    <li>• Is the market bullish right now?</li>
+                    <li>• Why is Nifty falling today?</li>
+                    <li>• RBI policy impact on bank stocks</li>
+                    <li>• FII selling India equities</li>
+                    <li>• Reliance or TCS results sentiment</li>
+                    <li>• INR crude risk for Indian markets</li>
                   </ul>
                 </div>
 
