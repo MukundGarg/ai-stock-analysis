@@ -9,23 +9,71 @@ import os
 import re
 from typing import Any
 
-from openai import OpenAI, APIError
+from openai import APIError, OpenAI
+
+
+def _sanitize_for_client(text: str, max_len: int = 600) -> str:
+    """Remove accidental key-like substrings before returning errors to the browser."""
+    t = re.sub(r"sk-[a-zA-Z0-9_-]{8,}", "[API key redacted]", text)
+    return t.strip()[:max_len]
+
+
+def _http_status(exc: BaseException) -> int | None:
+    return getattr(exc, "status_code", None) or getattr(exc, "status", None)
+
+
+def _format_api_error(exc: BaseException) -> str:
+    parts: list[str] = []
+    st = _http_status(exc)
+    if st is not None:
+        parts.append(f"HTTP {st}")
+    msg = getattr(exc, "message", None) or str(exc)
+    if msg:
+        parts.append(msg)
+    body = getattr(exc, "body", None)
+    if body is not None and str(body) not in msg:
+        parts.append(str(body)[:400])
+    return _sanitize_for_client(" — ".join(parts) if parts else str(exc))
+
+
+def _should_try_next_model(exc: BaseException) -> bool:
+    """Retry with fallback model only when the failure plausibly model-related or OpenAI server error."""
+    st = _http_status(exc)
+    if st in (401, 403):
+        return False
+    if st == 429:
+        return True
+    if st is not None and 500 <= st < 600:
+        return True
+    if st == 404:
+        return True
+    low = str(exc).lower()
+    if "model" in low and any(
+        x in low for x in ("not found", "does not exist", "invalid", "unknown model", "does_not_exist")
+    ):
+        return True
+    if "does not have access" in low or "organization" in low and "model" in low:
+        return True
+    return False
 
 
 def get_openai_client() -> OpenAI:
     """Get OpenAI client with API key from environment."""
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not api_key:
         raise ValueError(
             "OPENAI_API_KEY environment variable not set. "
             "Please set your OpenAI API key."
         )
-    return OpenAI(api_key=api_key)
+    timeout = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "120"))
+    max_retries = int(os.getenv("OPENAI_MAX_RETRIES", "2"))
+    return OpenAI(api_key=api_key, timeout=timeout, max_retries=max_retries)
 
 
 def analyze_financial_report(text: str) -> dict[str, Any]:
     """
     Analyze financial report text; return structured beginner-friendly output.
+    Tries PDF_ANALYSIS_MODEL first, then PDF_ANALYSIS_MODEL_FALLBACK (default gpt-3.5-turbo).
     """
 
     analysis_prompt = f"""You are a financial analyst helping **Indian retail investors and beginners** understand company documents (annual reports, quarterly results, investor presentations, US-style 10-K/10-Q, or Indian filings).
@@ -57,29 +105,50 @@ Financial report excerpt:
 """
 
     client = get_openai_client()
-    model = os.getenv("PDF_ANALYSIS_MODEL", "gpt-4o-mini")
+    primary = (os.getenv("PDF_ANALYSIS_MODEL", "gpt-4o-mini") or "").strip()
+    fallback = (os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gpt-3.5-turbo") or "").strip()
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You respond with valid JSON only. No markdown fences.",
-                },
-                {"role": "user", "content": analysis_prompt},
-            ],
-            temperature=0.35,
-            max_tokens=2200,
-            timeout=60,
-        )
-        response_text = (response.choices[0].message.content or "").strip()
-        analysis = _parse_json_response(response_text)
-        return _validate_and_normalize_analysis(analysis)
-    except APIError as e:
-        raise ValueError(f"OpenAI API error: {str(e)}") from e
-    except Exception as e:
-        raise ValueError(f"Error analyzing report: {str(e)}") from e
+    models: list[str] = []
+    for m in (primary, fallback):
+        if m and m not in models:
+            models.append(m)
+
+    for idx, model in enumerate(models):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You respond with valid JSON only. No markdown fences.",
+                    },
+                    {"role": "user", "content": analysis_prompt},
+                ],
+                temperature=0.35,
+                max_tokens=2200,
+            )
+            response_text = (response.choices[0].message.content or "").strip()
+            analysis = _parse_json_response(response_text)
+            result = _validate_and_normalize_analysis(analysis)
+            if model != primary:
+                result["_pdf_model_used"] = model
+            return result
+        except APIError as e:
+            print(f"[pdf] OpenAI APIError with model={model!r}: {_format_api_error(e)}")
+            if idx < len(models) - 1 and _should_try_next_model(e):
+                print(f"[pdf] Retrying with model={models[idx + 1]!r}")
+                continue
+            raise ValueError(f"OpenAI API error: {_format_api_error(e)}") from e
+        except Exception as e:
+            print(f"[pdf] Non-API error with model={model!r}: {e}")
+            raise ValueError(f"Error analyzing report: {_sanitize_for_client(str(e))}") from e
+
+    raise ValueError("No OpenAI models configured for PDF analysis.")
+
+
+def sanitize_for_api_response(text: str, max_len: int = 600) -> str:
+    """Safe error snippet for JSON responses (no API keys)."""
+    return _sanitize_for_client(text, max_len)
 
 
 def _parse_json_response(response_text: str) -> dict[str, Any]:
@@ -144,7 +213,9 @@ def classify_financial_analysis_error(exc: BaseException) -> str:
         return "missing_api_key"
     if "openai api error" in msg or "incorrect api key" in msg or "invalid_api_key" in msg:
         return "openai_error"
-    if "rate limit" in msg or "429" in full:
+    if "401" in full or "403" in full or "authentication" in msg:
+        return "openai_error"
+    if "rate limit" in msg or "429" in full or "quota" in msg or "insufficient_quota" in msg:
         return "openai_error"
     if "json" in msg or "parse" in msg or "could not parse" in msg:
         return "json_parse"
@@ -164,7 +235,8 @@ def create_fallback_analysis(
             "Below is a basic keyword scan of the extracted text only."
         ),
         "openai_error": (
-            "Full AI analysis failed due to an OpenAI API error (quota, billing, or network). "
+            "Full AI analysis failed when calling OpenAI from your Render service. "
+            "See the technical detail below and check billing, model access, and the key on Render. "
             "Below is a basic keyword scan of the extracted text only."
         ),
         "json_parse": (

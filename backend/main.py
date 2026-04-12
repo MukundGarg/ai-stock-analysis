@@ -18,6 +18,7 @@ from ai_analyzer import (
     analyze_financial_report,
     classify_financial_analysis_error,
     create_fallback_analysis,
+    sanitize_for_api_response,
 )
 from chart_processor import analyze_chart
 from chart_vision import analyze_chart_vision, merge_vision_and_cv
@@ -79,6 +80,7 @@ class AnalysisResponse(BaseModel):
     analysis_mode: Literal["ai", "fallback"] = "ai"
     fallback_reason: str | None = None
     setup_hint: str | None = None
+    fallback_detail: str | None = None
 
 
 class ChartAnalysisResponse(BaseModel):
@@ -143,8 +145,10 @@ def _pdf_setup_hint(reason: str, detail: str) -> str:
             "The browser/Next.js env file alone is not enough — the key must be on the Python backend."
         ),
         "openai_error": (
-            "OpenAI rejected the request (billing, quota, or invalid key). Check https://platform.openai.com "
-            "and your server logs for the exact error."
+            "OpenAI returned an error from Render (see Technical detail below). Common fixes: add a payment method "
+            "and paid API credits on https://platform.openai.com , confirm the key is an API key (not a project "
+            "secret mismatch), set PDF_ANALYSIS_MODEL=gpt-3.5-turbo if your org cannot use gpt-4o-mini, and "
+            "redeploy after changing env vars."
         ),
         "json_parse": (
             "Try again, or use a smaller text-based PDF. If it persists, try PDF_ANALYSIS_MODEL=gpt-4o-mini "
@@ -245,15 +249,18 @@ async def analyze_pdf(file: UploadFile = File(...)):
                 analysis_mode="fallback",
                 fallback_reason=reason,
                 setup_hint=_pdf_setup_hint(reason, ""),
+                fallback_detail=None,
             )
 
         try:
             analysis = analyze_financial_report(cleaned_text)
+            analysis.pop("_pdf_model_used", None)
             return AnalysisResponse(
                 **analysis,
                 analysis_mode="ai",
                 fallback_reason=None,
                 setup_hint=None,
+                fallback_detail=None,
             )
         except ValueError as e:
             print(f"AI analysis failed: {e}. Using fallback.")
@@ -264,6 +271,7 @@ async def analyze_pdf(file: UploadFile = File(...)):
                 analysis_mode="fallback",
                 fallback_reason=reason,
                 setup_hint=_pdf_setup_hint(reason, str(e)),
+                fallback_detail=sanitize_for_api_response(str(e)),
             )
     except HTTPException:
         raise

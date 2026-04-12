@@ -24,6 +24,7 @@ interface AnalysisResult {
   analysis_mode?: 'ai' | 'fallback';
   fallback_reason?: string | null;
   setup_hint?: string | null;
+  fallback_detail?: string | null;
 }
 
 interface ErrorState {
@@ -223,6 +224,16 @@ export default function PDFToolPage() {
                         <p className="mt-2 text-xs text-amber-900/80 dark:text-amber-200/90">
                           Reason code: {analysis.fallback_reason}
                         </p>
+                      )}
+                      {analysis.fallback_detail && (
+                        <div className="mt-3 rounded-lg bg-amber-100/80 p-3 dark:bg-amber-950/50">
+                          <p className="text-xs font-medium text-amber-950 dark:text-amber-100">
+                            Technical detail (from OpenAI / server)
+                          </p>
+                          <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-amber-950 dark:text-amber-100">
+                            {analysis.fallback_detail}
+                          </pre>
+                        </div>
                       )}
                       <p className="mt-3 text-xs text-amber-900/80 dark:text-amber-200/90">
                         Quick check: open{' '}
