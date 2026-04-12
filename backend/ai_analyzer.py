@@ -136,8 +136,48 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
     return analysis
 
 
-def create_fallback_analysis(text: str) -> dict[str, Any]:
-    """Structured fallback when the API is unavailable."""
+def classify_financial_analysis_error(exc: BaseException) -> str:
+    """Return reason_code for create_fallback_analysis and API hints."""
+    msg = str(exc).lower()
+    full = str(exc)
+    if "openai_api_key" in msg or "environment variable not set" in msg:
+        return "missing_api_key"
+    if "openai api error" in msg or "incorrect api key" in msg or "invalid_api_key" in msg:
+        return "openai_error"
+    if "rate limit" in msg or "429" in full:
+        return "openai_error"
+    if "json" in msg or "parse" in msg or "could not parse" in msg:
+        return "json_parse"
+    return "generic"
+
+
+def create_fallback_analysis(
+    text: str,
+    *,
+    reason_code: str | None = None,
+) -> dict[str, Any]:
+    """Structured fallback when the API is unavailable or fails."""
+
+    summaries: dict[str, str] = {
+        "missing_api_key": (
+            "Full AI analysis did not run because the API server has no OpenAI key configured. "
+            "Below is a basic keyword scan of the extracted text only."
+        ),
+        "openai_error": (
+            "Full AI analysis failed due to an OpenAI API error (quota, billing, or network). "
+            "Below is a basic keyword scan of the extracted text only."
+        ),
+        "json_parse": (
+            "The model returned text we could not parse as JSON. "
+            "Below is a basic keyword scan of the extracted text only; try again or shorten the PDF."
+        ),
+        "generic": (
+            "Full AI analysis could not complete. "
+            "Below is a basic keyword scan of the extracted text only."
+        ),
+    }
+    summary = summaries.get(reason_code or "generic", summaries["generic"])
+
     text_lower = text.lower()
     key_positives: list[str] = []
     risks: list[str] = []
@@ -168,11 +208,6 @@ def create_fallback_analysis(text: str) -> dict[str, Any]:
         risks.append("Read risk factors and contingent liabilities in the complete document.")
     while len(opportunities) < 2:
         opportunities.append("Scan management discussion for strategy and capex plans.")
-
-    summary = (
-        "We could not run the full AI model. This is a **basic scan** of the extracted text only — "
-        "upload a text-based PDF and ensure OPENAI_API_KEY is set for a complete structured analysis."
-    )
 
     return {
         "summary": summary,

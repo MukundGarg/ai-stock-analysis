@@ -21,6 +21,9 @@ interface AnalysisResult {
   beginner_explanation: string;
   company_summary: string;
   future_outlook: string;
+  analysis_mode?: 'ai' | 'fallback';
+  fallback_reason?: string | null;
+  setup_hint?: string | null;
 }
 
 interface ErrorState {
@@ -202,6 +205,35 @@ export default function PDFToolPage() {
                       Analyzed: <span className="font-medium">{fileName}</span>
                     </p>
                   </div>
+
+                  {analysis.analysis_mode === 'fallback' && (
+                    <div
+                      role="status"
+                      className="rounded-xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950/40"
+                    >
+                      <p className="font-semibold text-amber-950 dark:text-amber-100">
+                        Limited mode (no full AI run)
+                      </p>
+                      {analysis.setup_hint && (
+                        <p className="mt-2 text-sm leading-relaxed text-amber-950 dark:text-amber-100">
+                          {analysis.setup_hint}
+                        </p>
+                      )}
+                      {analysis.fallback_reason && (
+                        <p className="mt-2 text-xs text-amber-900/80 dark:text-amber-200/90">
+                          Reason code: {analysis.fallback_reason}
+                        </p>
+                      )}
+                      <p className="mt-3 text-xs text-amber-900/80 dark:text-amber-200/90">
+                        Quick check: open{' '}
+                        <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/60">
+                          {getApiUrl()}/health
+                        </code>{' '}
+                        — if <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/60">openai_configured</code>{' '}
+                        is false, add the key on your API server and redeploy.
+                      </p>
+                    </div>
+                  )}
 
                   <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
                     <h3 className="mb-3 text-xl font-bold text-gray-900 dark:text-white">Executive summary</h3>

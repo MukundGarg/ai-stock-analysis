@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +14,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import dotenv
 
-from ai_analyzer import analyze_financial_report, create_fallback_analysis
+from ai_analyzer import (
+    analyze_financial_report,
+    classify_financial_analysis_error,
+    create_fallback_analysis,
+)
 from chart_processor import analyze_chart
 from chart_vision import analyze_chart_vision, merge_vision_and_cv
 from copilot_service import copilot_chat
@@ -72,6 +76,9 @@ class AnalysisResponse(BaseModel):
     beginner_explanation: str
     company_summary: str
     future_outlook: str
+    analysis_mode: Literal["ai", "fallback"] = "ai"
+    fallback_reason: str | None = None
+    setup_hint: str | None = None
 
 
 class ChartAnalysisResponse(BaseModel):
@@ -126,6 +133,30 @@ class CopilotResponse(BaseModel):
     model: str
 
 
+def _pdf_setup_hint(reason: str, detail: str) -> str:
+    """Actionable message for operators and UI when PDF AI path is skipped."""
+    _ = detail
+    hints = {
+        "missing_api_key": (
+            "Set OPENAI_API_KEY in the environment where this FastAPI app runs "
+            "(e.g. backend/.env locally, or Render/Railway/Vercel serverless env for the API), then restart. "
+            "The browser/Next.js env file alone is not enough — the key must be on the Python backend."
+        ),
+        "openai_error": (
+            "OpenAI rejected the request (billing, quota, or invalid key). Check https://platform.openai.com "
+            "and your server logs for the exact error."
+        ),
+        "json_parse": (
+            "Try again, or use a smaller text-based PDF. If it persists, try PDF_ANALYSIS_MODEL=gpt-4o-mini "
+            "in the backend environment."
+        ),
+        "generic": (
+            "See server logs for details. Ensure OPENAI_API_KEY is set on the backend and outbound HTTPS is allowed."
+        ),
+    }
+    return hints.get(reason, hints["generic"])
+
+
 @app.get("/")
 async def root():
     return {
@@ -147,7 +178,12 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "StockSense AI Backend", "version": "2.0.0"}
+    return {
+        "status": "healthy",
+        "service": "StockSense AI Backend",
+        "version": "2.0.0",
+        "openai_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+    }
 
 
 @app.get("/learn/indian-markets")
@@ -201,13 +237,34 @@ async def analyze_pdf(file: UploadFile = File(...)):
 
         cleaned_text = clean_and_truncate_text(extracted_text, max_length=12000)
 
+        if not os.getenv("OPENAI_API_KEY", "").strip():
+            reason = "missing_api_key"
+            analysis = create_fallback_analysis(cleaned_text, reason_code=reason)
+            return AnalysisResponse(
+                **analysis,
+                analysis_mode="fallback",
+                fallback_reason=reason,
+                setup_hint=_pdf_setup_hint(reason, ""),
+            )
+
         try:
             analysis = analyze_financial_report(cleaned_text)
+            return AnalysisResponse(
+                **analysis,
+                analysis_mode="ai",
+                fallback_reason=None,
+                setup_hint=None,
+            )
         except ValueError as e:
             print(f"AI analysis failed: {e}. Using fallback.")
-            analysis = create_fallback_analysis(cleaned_text)
-
-        return AnalysisResponse(**analysis)
+            reason = classify_financial_analysis_error(e)
+            analysis = create_fallback_analysis(cleaned_text, reason_code=reason)
+            return AnalysisResponse(
+                **analysis,
+                analysis_mode="fallback",
+                fallback_reason=reason,
+                setup_hint=_pdf_setup_hint(reason, str(e)),
+            )
     except HTTPException:
         raise
     except ValueError as e:
