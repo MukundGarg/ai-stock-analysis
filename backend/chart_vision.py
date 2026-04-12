@@ -1,30 +1,17 @@
 """
-Vision-based chart analysis using OpenAI multimodal models — primary signal for patterns.
+Vision-based chart analysis using the configured LLM (Gemini or Groq vision).
 Falls back to CV pipeline when API fails.
 """
 
 from __future__ import annotations
 
-import base64
-import io
 import json
 import os
 import re
 from typing import Any
 
-from PIL import Image
-
-from ai_analyzer import get_openai_client
-
-
-def _image_mime_and_b64(image_bytes: bytes) -> tuple[str, str]:
-    img = Image.open(io.BytesIO(image_bytes))
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    raw = buf.getvalue()
-    return "image/png", base64.standard_b64encode(raw).decode("ascii")
+from ai_provider import get_llm
+from ai_provider.config import is_llm_configured
 
 
 def analyze_chart_vision(image_bytes: bytes) -> dict[str, Any] | None:
@@ -33,10 +20,13 @@ def analyze_chart_vision(image_bytes: bytes) -> dict[str, Any] | None:
     Expected keys: pattern, signal, confidence_0_100, support_resistance, trendlines,
     breakout_notes, candlestick_notes, reasoning, beginner_explanation, caveats
     """
+    if not is_llm_configured():
+        return None
     try:
-        mime, b64 = _image_mime_and_b64(image_bytes)
-        client = get_openai_client()
-        model = os.getenv("CHART_VISION_MODEL", "gpt-4o-mini")
+        llm = get_llm()
+        model = os.getenv("CHART_VISION_MODEL")
+        if model:
+            model = model.strip()
 
         schema_hint = """Return ONLY valid JSON (no markdown) with exactly these keys:
 {
@@ -58,23 +48,13 @@ If the image is not a price chart or is too cluttered, set pattern to "No clear 
 
 {schema_hint}"""
 
-        url = f"data:{mime};base64,{b64}"
-        response = client.chat.completions.create(
+        raw = llm.vision_image(
+            image_bytes,
+            prompt,
             model=model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": url, "detail": "high"}},
-                    ],
-                }
-            ],
             temperature=0.2,
             max_tokens=900,
-            timeout=90,
         )
-        raw = (response.choices[0].message.content or "").strip()
         data = _parse_json_loose(raw)
         if not data:
             return None
@@ -128,9 +108,6 @@ def _normalize_vision_payload(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def merge_vision_and_cv(vision: dict[str, Any] | None, cv_payload: dict[str, Any]) -> dict[str, Any]:
-    """
-    Produce API-facing chart result. Prefer vision when confidence is adequate.
-    """
     if not vision:
         return cv_payload
 
@@ -170,7 +147,6 @@ def merge_vision_and_cv(vision: dict[str, Any] | None, cv_payload: dict[str, Any
             "cv_fallback_summary": _cv_summary(cv_payload),
         }
 
-    # Low vision confidence — blend textually
     return {
         **cv_payload,
         "confidence_score": cv_conf,

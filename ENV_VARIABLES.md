@@ -27,18 +27,36 @@ NEXT_PUBLIC_API_URL=https://stocksense-ai-backend.onrender.com
 
 ## Backend (Render)
 
-### OPENAI_API_KEY
-- **What:** OpenAI API key for AI analysis
-- **Format:** `sk-...` (starts with sk-)
-- **Get:** https://platform.openai.com/api-keys
-- **Where:** Render Environment Variables
-- **Required:** Yes
-- **Sensitive:** YES - Never commit or share!
+### AI_PROVIDER
+- **What:** Which LLM backend to use
+- **Values:** `gemini` (default) or `groq`
+- **Required:** No (defaults to `gemini`)
+
+### GEMINI_API_KEY
+- **What:** Google AI Studio API key (when `AI_PROVIDER=gemini`)
+- **Get:** https://aistudio.google.com/apikey
+- **Required:** Yes if using Gemini
+- **Sensitive:** YES
 
 **Example:**
 ```sh
-OPENAI_API_KEY=sk-proj-abc123...
+AI_PROVIDER=gemini
+GEMINI_API_KEY=AIza...
 ```
+
+### GROQ_API_KEY
+- **What:** Groq API key (when `AI_PROVIDER=groq`)
+- **Get:** https://console.groq.com
+- **Required:** Yes if using Groq
+- **Sensitive:** YES
+
+**Example:**
+```sh
+AI_PROVIDER=groq
+GROQ_API_KEY=gsk_...
+```
+
+Optional model overrides: `GEMINI_MODEL`, `GROQ_MODEL`, `PDF_ANALYSIS_MODEL`, `CHART_VISION_MODEL`, `COPILOT_MODEL` — see `backend/.env.example`.
 
 ### ALLOWED_ORIGINS
 - **What:** CORS allowed origins (comma-separated)
@@ -72,7 +90,8 @@ echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
 #### 2. Create Backend .env
 ```bash
 cd backend
-echo "OPENAI_API_KEY=sk-your-key-here" > .env
+echo "AI_PROVIDER=gemini" > .env
+echo "GEMINI_API_KEY=your-key" >> .env
 # Optional: Set local development origins
 echo "ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001" >> .env
 ```
@@ -101,7 +120,8 @@ git push origin main
 #### 2. Render Backend Setup
 - **Service Name:** `stocksense-ai-backend`
 - **Environment Variables:**
-  - `OPENAI_API_KEY` = sk-your-key
+  - `AI_PROVIDER` = gemini
+  - `GEMINI_API_KEY` = (from Google AI Studio)
   - `ALLOWED_ORIGINS` = https://YOUR-VERCEL-DOMAIN.vercel.app
 
 #### 3. Vercel Frontend Setup
@@ -114,10 +134,10 @@ git push origin main
 ## Security Best Practices
 
 ### ✅ DO:
-- ✅ Store `OPENAI_API_KEY` in Render secrets, never in code
+- ✅ Store `GEMINI_API_KEY` / `GROQ_API_KEY` in Render secrets, never in code
 - ✅ Use environment variables for all secrets
 - ✅ Rotate API keys regularly
-- ✅ Monitor OpenAI usage
+- ✅ Monitor provider usage (Gemini / Groq dashboards)
 
 ### ❌ DON'T:
 - ❌ Commit `.env` files to Git
@@ -153,10 +173,10 @@ Only the backend logs will show if API key is loaded:
 2. Verify it matches actual Render backend URL
 3. Make sure backend is running (check Render logs)
 
-### "OPENAI_API_KEY not set" Error
-1. Check `OPENAI_API_KEY` is set in Render environment
-2. Verify key format starts with `sk-`
-3. Verify key has active usage permissions
+### LLM / API key errors
+1. Check `AI_PROVIDER` matches your key (`gemini` vs `groq`)
+2. Set `GEMINI_API_KEY` or `GROQ_API_KEY` in Render and redeploy
+3. Call `GET /health` — `llm_configured` should be true
 
 ### CORS Errors
 1. Check exact Vercel frontend URL
@@ -170,7 +190,7 @@ Only the backend logs will show if API key is loaded:
 | Variable | Service | Type | Required |
 |----------|---------|------|----------|
 | NEXT_PUBLIC_API_URL | Vercel | Public | Yes (prod) |
-| OPENAI_API_KEY | Render | Secret | Yes |
+| GEMINI_API_KEY or GROQ_API_KEY | Render | Secret | Yes |
 | ALLOWED_ORIGINS | Render | Env | Yes (prod) |
 
 All set! 🚀

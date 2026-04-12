@@ -164,10 +164,16 @@ def enrich_sentiment_with_llm(
     """
     headlines = "\n".join(f"- {a.get('title', '')[:180]}" for a in articles[:6])
     try:
-        from ai_analyzer import get_openai_client
+        from ai_provider import get_llm
+        from ai_provider.config import get_provider_name
 
-        client = get_openai_client()
-        model = os.getenv("SENTIMENT_MODEL", "gpt-4o-mini")
+        llm = get_llm()
+        if os.getenv("SENTIMENT_MODEL"):
+            model = os.getenv("SENTIMENT_MODEL", "").strip()
+        elif get_provider_name() == "groq":
+            model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+        else:
+            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
 
         prompt = f"""User question: "{query}"
 
@@ -182,17 +188,15 @@ Return ONLY valid JSON:
 {{"reasoning": "3-5 sentences: what the news is saying, how it connects to India markets, uncertainties", "key_drivers": ["3-5 short bullets of concrete drivers"]}}
 No buy/sell instructions; educational tone."""
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
+        raw = llm.chat(
+            [
                 {"role": "system", "content": "JSON only. No markdown."},
                 {"role": "user", "content": prompt},
             ],
+            model=model,
             temperature=0.35,
             max_tokens=500,
-            timeout=45,
         )
-        raw = (response.choices[0].message.content or "").strip()
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:

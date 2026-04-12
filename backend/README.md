@@ -10,7 +10,8 @@ The backend is a FastAPI server that processes PDF financial reports and provide
 backend/
 ├── main.py              # FastAPI application
 ├── pdf_parser.py        # PDF text extraction logic
-├── ai_analyzer.py       # OpenAI integration
+├── ai_provider/         # Pluggable LLM (Gemini / Groq)
+├── ai_analyzer.py       # Structured PDF analysis via LLM
 ├── requirements.txt     # Python dependencies
 ├── .env                 # Environment variables (create this)
 ├── .env.example         # Example environment variables
@@ -33,11 +34,13 @@ PDF processing utilities:
 - `clean_and_truncate_text()` - Cleans and limits text for LLM
 - `get_pdf_metadata()` - Extracts PDF metadata
 
+### ai_provider/
+- `get_llm()` — singleton Gemini or Groq client (`AI_PROVIDER` env)
+- See `ai_provider/gemini_provider.py`, `ai_provider/groq_provider.py`
+
 ### ai_analyzer.py
-AI analysis using OpenAI:
-- `get_openai_client()` - Initialize OpenAI client
-- `analyze_financial_report()` - Analyzes report text with GPT
-- `create_fallback_analysis()` - Fallback analysis if API fails
+- `analyze_financial_report()` — JSON analysis via configured LLM
+- `create_fallback_analysis()` — Keyword fallback if the LLM fails
 
 ## Installation
 
@@ -59,7 +62,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
+# Edit .env: AI_PROVIDER and GEMINI_API_KEY or GROQ_API_KEY
 ```
 
 ### 4. Run Server
@@ -79,7 +82,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 - **fastapi**: Web framework
 - **uvicorn**: ASGI server
 - **pdfplumber**: PDF text extraction
-- **openai**: OpenAI API client
+- **google-generativeai**: Google Gemini API
 - **python-multipart**: File upload support
 - **pydantic**: Data validation
 - **python-dotenv**: Environment variable management
@@ -199,7 +202,7 @@ app.add_middleware(
    - Truncate to 8000 characters (keeps important info within token limits)
 
 4. **AI Analysis**
-   - Send text to OpenAI GPT-3.5-turbo
+   - Send text to configured LLM (Gemini / Groq)
    - Prompt extracts: summary, positives, risks, outlook
    - Parse JSON response
    - Validate structure
@@ -243,16 +246,9 @@ source venv/bin/activate  # Activate virtual environment
 pip install -r requirements.txt
 ```
 
-### 2. OPENAI_API_KEY not set
+### 2. LLM API key not set
 
-```
-ValueError: OPENAI_API_KEY environment variable not set
-```
-
-**Solution:**
-1. Create `.env` file in backend folder
-2. Add: `OPENAI_API_KEY=sk-...`
-3. Restart server
+Configure `AI_PROVIDER` and `GEMINI_API_KEY` or `GROQ_API_KEY` (see `.env.example`), then restart the server.
 
 ### 3. Port already in use
 
@@ -283,32 +279,17 @@ kill -9 <PID>
 
 **Solution:** Use a text-based PDF or OCR the image-based PDF first
 
-### 5. OpenAI API errors
+### 5. LLM API errors
 
-```
-"OpenAI API error: ..."
-```
+**Causes:** Invalid key, quota, wrong model name, or network issues.
 
-**Causes:**
-- Invalid API key
-- API key quota exceeded
-- API is down
-- Network timeout
-
-**Solution:**
-- Verify API key at https://platform.openai.com/api-keys
-- Check usage at https://platform.openai.com/usage
-- Wait and retry
+**Solution:** Verify keys in Google AI Studio or Groq; adjust `GEMINI_MODEL` / `GROQ_MODEL`; check Render logs.
 
 ## Performance Optimization
 
 ### Reduce Analysis Time
 
-**Option 1:** Use faster model (if available)
-```python
-model="gpt-3.5-turbo"  # Fast
-model="gpt-4"          # Slower but better
-```
+**Option 1:** Use a faster or cheaper model via env, e.g. `GEMINI_MODEL=gemini-1.5-flash` or `GROQ_MODEL=llama-3.1-8b-instant`.
 
 **Option 2:** Reduce text length
 ```python
@@ -363,7 +344,7 @@ CMD ["python", "main.py"]
 Build and run:
 ```bash
 docker build -t stocksense-pdf .
-docker run -p 8000:8000 -e OPENAI_API_KEY=sk-... stocksense-pdf
+docker run -p 8000:8000 -e AI_PROVIDER=gemini -e GEMINI_API_KEY=... stocksense-pdf
 ```
 
 ### Production Servers

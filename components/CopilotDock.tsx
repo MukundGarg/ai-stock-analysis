@@ -36,7 +36,7 @@ export default function CopilotDock() {
         {
           role: 'assistant',
           content:
-            'I could not reach the copilot. Is the backend running and OPENAI_API_KEY set? ' +
+            'I could not reach the copilot. Is the backend running with AI_PROVIDER and GEMINI_API_KEY or GROQ_API_KEY? ' +
             msg,
         },
       ]);

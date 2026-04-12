@@ -4,13 +4,15 @@ Unified trading copilot: one conversation brain with optional workspace context 
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from collections import defaultdict
 from typing import Any
 
 from indian_market_context import INDIAN_MARKETS_REFERENCE
-from ai_analyzer import get_openai_client
+from ai_provider import get_llm
+from ai_provider.config import get_provider_name
 
 _MAX_TURNS = 24
 _MAX_MESSAGE_CHARS = 4000
@@ -36,8 +38,6 @@ Your role:
 {INDIAN_MARKETS_REFERENCE}
 """
     if workspace_context:
-        import json
-
         try:
             ctx = json.dumps(workspace_context, ensure_ascii=False, indent=2)[:12000]
         except Exception:
@@ -56,6 +56,14 @@ def new_session_id() -> str:
     return str(uuid.uuid4())
 
 
+def _default_copilot_model() -> str:
+    if os.getenv("COPILOT_MODEL"):
+        return os.getenv("COPILOT_MODEL", "").strip()
+    if get_provider_name() == "groq":
+        return os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+    return os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+
+
 def copilot_chat(
     message: str,
     session_id: str | None,
@@ -71,23 +79,22 @@ def copilot_chat(
         raise ValueError(f"Message too long (max {_MAX_MESSAGE_CHARS} characters)")
 
     sid = session_id or new_session_id()
-    client = get_openai_client()
+    llm = get_llm()
 
     history = _sessions[sid]
     history.append({"role": "user", "content": text})
     history = _trim_session(history)
 
-    model = os.getenv("COPILOT_MODEL", "gpt-4o-mini")
+    model = _default_copilot_model()
     messages = [{"role": "system", "content": _system_prompt(workspace_context)}] + history
 
-    response = client.chat.completions.create(
+    reply = llm.chat(
+        messages,
         model=model,
-        messages=messages,
         temperature=0.5,
         max_tokens=1200,
-        timeout=60,
     )
-    reply = (response.choices[0].message.content or "").strip()
+    reply = (reply or "").strip()
     if not reply:
         reply = "I couldn’t generate a reply. Please try rephrasing your question."
 

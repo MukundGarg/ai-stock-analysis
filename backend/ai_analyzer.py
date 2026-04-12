@@ -1,5 +1,5 @@
 """
-AI Analyzer Module — OpenAI for PDF analysis and shared client access.
+AI Analyzer Module — structured PDF analysis via pluggable LLM (Gemini / Groq).
 """
 
 from __future__ import annotations
@@ -9,12 +9,12 @@ import os
 import re
 from typing import Any
 
-from openai import APIError, OpenAI
+from ai_provider import LLMProviderError, get_llm, get_provider_name
 
 
 def _sanitize_for_client(text: str, max_len: int = 600) -> str:
-    """Remove accidental key-like substrings before returning errors to the browser."""
     t = re.sub(r"sk-[a-zA-Z0-9_-]{8,}", "[API key redacted]", text)
+    t = re.sub(r"AIza[0-9A-Za-z_-]{20,}", "[API key redacted]", t)
     return t.strip()[:max_len]
 
 
@@ -37,8 +37,10 @@ def _format_api_error(exc: BaseException) -> str:
 
 
 def _should_try_next_model(exc: BaseException) -> bool:
-    """Retry with fallback model only when the failure plausibly model-related or OpenAI server error."""
     st = _http_status(exc)
+    sfull = str(exc)
+    if "429" in sfull or "503" in sfull:
+        return True
     if st in (401, 403):
         return False
     if st == 429:
@@ -52,28 +54,26 @@ def _should_try_next_model(exc: BaseException) -> bool:
         x in low for x in ("not found", "does not exist", "invalid", "unknown model", "does_not_exist")
     ):
         return True
-    if "does not have access" in low or "organization" in low and "model" in low:
+    if "does not have access" in low:
         return True
     return False
 
 
-def get_openai_client() -> OpenAI:
-    """Get OpenAI client with API key from environment."""
-    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not api_key:
-        raise ValueError(
-            "OPENAI_API_KEY environment variable not set. "
-            "Please set your OpenAI API key."
-        )
-    timeout = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "120"))
-    max_retries = int(os.getenv("OPENAI_MAX_RETRIES", "2"))
-    return OpenAI(api_key=api_key, timeout=timeout, max_retries=max_retries)
+def _pdf_model_pair() -> tuple[str, str]:
+    """Primary and fallback model IDs for the active provider."""
+    if get_provider_name() == "groq":
+        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "llama-3.1-8b-instant")
+    else:
+        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gemini-1.5-flash")
+    return primary.strip(), fallback.strip()
 
 
 def analyze_financial_report(text: str) -> dict[str, Any]:
     """
     Analyze financial report text; return structured beginner-friendly output.
-    Tries PDF_ANALYSIS_MODEL first, then PDF_ANALYSIS_MODEL_FALLBACK (default gpt-3.5-turbo).
+    Tries primary model then fallback when the failure looks retryable.
     """
 
     analysis_prompt = f"""You are a financial analyst helping **Indian retail investors and beginners** understand company documents (annual reports, quarterly results, investor presentations, US-style 10-K/10-Q, or Indian filings).
@@ -104,50 +104,45 @@ Financial report excerpt:
 {text}
 """
 
-    client = get_openai_client()
-    primary = (os.getenv("PDF_ANALYSIS_MODEL", "gpt-4o-mini") or "").strip()
-    fallback = (os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gpt-3.5-turbo") or "").strip()
-
+    llm = get_llm()
+    primary, fb = _pdf_model_pair()
     models: list[str] = []
-    for m in (primary, fallback):
+    for m in (primary, fb):
         if m and m not in models:
             models.append(m)
 
+    messages = [
+        {"role": "system", "content": "You respond with valid JSON only. No markdown fences."},
+        {"role": "user", "content": analysis_prompt},
+    ]
+
     for idx, model in enumerate(models):
         try:
-            response = client.chat.completions.create(
+            response_text = llm.chat(
+                messages,
                 model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You respond with valid JSON only. No markdown fences.",
-                    },
-                    {"role": "user", "content": analysis_prompt},
-                ],
                 temperature=0.35,
                 max_tokens=2200,
             )
-            response_text = (response.choices[0].message.content or "").strip()
             analysis = _parse_json_response(response_text)
             result = _validate_and_normalize_analysis(analysis)
             if model != primary:
                 result["_pdf_model_used"] = model
             return result
-        except APIError as e:
-            print(f"[pdf] OpenAI APIError with model={model!r}: {_format_api_error(e)}")
+        except LLMProviderError as e:
+            print(f"[pdf] LLM error with model={model!r}: {_format_api_error(e)}")
             if idx < len(models) - 1 and _should_try_next_model(e):
                 print(f"[pdf] Retrying with model={models[idx + 1]!r}")
                 continue
-            raise ValueError(f"OpenAI API error: {_format_api_error(e)}") from e
+            raise ValueError(f"LLM API error: {_format_api_error(e)}") from e
         except Exception as e:
-            print(f"[pdf] Non-API error with model={model!r}: {e}")
+            print(f"[pdf] Non-LLM error with model={model!r}: {e}")
             raise ValueError(f"Error analyzing report: {_sanitize_for_client(str(e))}") from e
 
-    raise ValueError("No OpenAI models configured for PDF analysis.")
+    raise ValueError("No LLM models configured for PDF analysis.")
 
 
 def sanitize_for_api_response(text: str, max_len: int = 600) -> str:
-    """Safe error snippet for JSON responses (no API keys)."""
     return _sanitize_for_client(text, max_len)
 
 
@@ -206,17 +201,16 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
 
 
 def classify_financial_analysis_error(exc: BaseException) -> str:
-    """Return reason_code for create_fallback_analysis and API hints."""
     msg = str(exc).lower()
     full = str(exc)
-    if "openai_api_key" in msg or "environment variable not set" in msg:
-        return "missing_api_key"
-    if "openai api error" in msg or "incorrect api key" in msg or "invalid_api_key" in msg:
-        return "openai_error"
-    if "401" in full or "403" in full or "authentication" in msg:
-        return "openai_error"
-    if "rate limit" in msg or "429" in full or "quota" in msg or "insufficient_quota" in msg:
-        return "openai_error"
+    if "not set" in msg and "key" in msg:
+        return "missing_llm_key"
+    if "llm api error" in msg:
+        return "llm_error"
+    if "401" in full or "403" in full:
+        return "llm_error"
+    if "429" in full or "quota" in msg or "rate" in msg:
+        return "llm_error"
     if "json" in msg or "parse" in msg or "could not parse" in msg:
         return "json_parse"
     return "generic"
@@ -227,16 +221,23 @@ def create_fallback_analysis(
     *,
     reason_code: str | None = None,
 ) -> dict[str, Any]:
-    """Structured fallback when the API is unavailable or fails."""
-
     summaries: dict[str, str] = {
+        "missing_llm_key": (
+            "Full AI analysis did not run because no LLM API key is configured on the server "
+            "(GEMINI_API_KEY or GROQ_API_KEY, depending on AI_PROVIDER). "
+            "Below is a basic keyword scan of the extracted text only."
+        ),
         "missing_api_key": (
-            "Full AI analysis did not run because the API server has no OpenAI key configured. "
+            "Full AI analysis did not run because no LLM API key is configured on the server. "
+            "Below is a basic keyword scan of the extracted text only."
+        ),
+        "llm_error": (
+            "Full AI analysis failed when calling the LLM from your host. "
+            "See the technical detail below (billing, model name, or key). "
             "Below is a basic keyword scan of the extracted text only."
         ),
         "openai_error": (
-            "Full AI analysis failed when calling OpenAI from your Render service. "
-            "See the technical detail below and check billing, model access, and the key on Render. "
+            "Full AI analysis failed when calling the LLM. "
             "Below is a basic keyword scan of the extracted text only."
         ),
         "json_parse": (
@@ -248,7 +249,8 @@ def create_fallback_analysis(
             "Below is a basic keyword scan of the extracted text only."
         ),
     }
-    summary = summaries.get(reason_code or "generic", summaries["generic"])
+    key = reason_code or "generic"
+    summary = summaries.get(key, summaries["generic"])
 
     text_lower = text.lower()
     key_positives: list[str] = []

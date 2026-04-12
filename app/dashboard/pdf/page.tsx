@@ -228,7 +228,7 @@ export default function PDFToolPage() {
                       {analysis.fallback_detail && (
                         <div className="mt-3 rounded-lg bg-amber-100/80 p-3 dark:bg-amber-950/50">
                           <p className="text-xs font-medium text-amber-950 dark:text-amber-100">
-                            Technical detail (from OpenAI / server)
+                            Technical detail (from LLM / server)
                           </p>
                           <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-amber-950 dark:text-amber-100">
                             {analysis.fallback_detail}
@@ -240,8 +240,8 @@ export default function PDFToolPage() {
                         <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/60">
                           {getApiUrl()}/health
                         </code>{' '}
-                        — if <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/60">openai_configured</code>{' '}
-                        is false, add the key on your API server and redeploy.
+                        — if <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/60">llm_configured</code>{' '}
+                        is false, set AI_PROVIDER and GEMINI_API_KEY or GROQ_API_KEY on the API server and redeploy.
                       </p>
                     </div>
                   )}

@@ -6,7 +6,7 @@ A full-stack AI application for analyzing financial documents and stock chart pa
 
 ### PDF Financial Report Analyzer
 - Upload and analyze financial reports (10-K, 10-Q, earnings calls)
-- AI-powered insights using OpenAI GPT
+- AI-powered insights (Google Gemini or Groq — configurable)
 - Get company summary, positives, risks, and future outlook
 - Instant analysis in seconds
 
@@ -27,7 +27,7 @@ A full-stack AI application for analyzing financial documents and stock chart pa
 **Prerequisites:**
 - Node.js 20+
 - Python 3.11+
-- OpenAI API key
+- `GEMINI_API_KEY` (default) or `GROQ_API_KEY` — see `backend/.env.example`
 
 **1. Clone and Setup**
 ```bash
@@ -46,10 +46,12 @@ Frontend (.env.local):
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-Backend (.env):
+Backend (`backend/.env`):
 ```
-OPENAI_API_KEY=sk-your-api-key
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your-google-ai-studio-key
 ```
+Or use Groq: `AI_PROVIDER=groq` and `GROQ_API_KEY=...`.
 
 **3. Run Locally**
 
@@ -79,7 +81,7 @@ Visit http://localhost:3000
 **Backend:**
 - FastAPI (Python)
 - OpenCV (computer vision)
-- OpenAI API (AI analysis)
+- Google Gemini / Groq (LLM analysis)
 - Deployed on Render
 
 ---
@@ -98,7 +100,7 @@ Visit http://localhost:3000
    - Connect GitHub repo
    - Build: `pip install -r backend/requirements.txt`
    - Start: `cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT`
-   - Env: `OPENAI_API_KEY=sk-...`
+   - Env: `AI_PROVIDER=gemini`, `GEMINI_API_KEY=...` (or Groq — see `backend/.env.example`)
 
 3. **Deploy Frontend (Vercel)**
    - New Project
@@ -141,7 +143,8 @@ stocksense-ai/
 ├── backend/                      # FastAPI server
 │   ├── main.py                   # API endpoints
 │   ├── pdf_parser.py             # PDF processing
-│   ├── ai_analyzer.py            # OpenAI integration
+│   ├── ai_provider/              # Gemini / Groq LLM layer
+│   ├── ai_analyzer.py            # PDF JSON analysis
 │   ├── chart_processor.py        # Image processing
 │   ├── pattern_detector.py       # Pattern detection
 │   ├── requirements.txt          # Python dependencies
@@ -251,7 +254,7 @@ curl -X POST http://localhost:8000/analyze-chart \
 |-----------|------|
 | Frontend (Vercel) | FREE |
 | Backend (Render) | $7/month |
-| OpenAI API | ~$0.01/analysis |
+| LLM (Gemini / Groq) | Free tiers vary by provider |
 | **Total** | ~$8-17/month |
 
 ---

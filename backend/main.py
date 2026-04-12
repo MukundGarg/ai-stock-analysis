@@ -20,6 +20,8 @@ from ai_analyzer import (
     create_fallback_analysis,
     sanitize_for_api_response,
 )
+from ai_provider import is_llm_configured
+from ai_provider.config import get_provider_name
 from chart_processor import analyze_chart
 from chart_vision import analyze_chart_vision, merge_vision_and_cv
 from copilot_service import copilot_chat
@@ -139,23 +141,25 @@ def _pdf_setup_hint(reason: str, detail: str) -> str:
     """Actionable message for operators and UI when PDF AI path is skipped."""
     _ = detail
     hints = {
+        "missing_llm_key": (
+            "Set AI_PROVIDER=gemini (default) and GEMINI_API_KEY from https://aistudio.google.com/apikey , "
+            "or AI_PROVIDER=groq and GROQ_API_KEY from https://console.groq.com — on the Python backend only, then redeploy."
+        ),
         "missing_api_key": (
-            "Set OPENAI_API_KEY in the environment where this FastAPI app runs "
-            "(e.g. backend/.env locally, or Render/Railway/Vercel serverless env for the API), then restart. "
-            "The browser/Next.js env file alone is not enough — the key must be on the Python backend."
+            "Set GEMINI_API_KEY or GROQ_API_KEY (see missing_llm_key hint) on the API server."
+        ),
+        "llm_error": (
+            "The LLM returned an error (see Technical detail below). Check model names (e.g. gemini-2.0-flash, "
+            "llama-3.3-70b-versatile), API key scope, quotas, and Render logs."
         ),
         "openai_error": (
-            "OpenAI returned an error from Render (see Technical detail below). Common fixes: add a payment method "
-            "and paid API credits on https://platform.openai.com , confirm the key is an API key (not a project "
-            "secret mismatch), set PDF_ANALYSIS_MODEL=gpt-3.5-turbo if your org cannot use gpt-4o-mini, and "
-            "redeploy after changing env vars."
+            "The LLM returned an error — see Technical detail below and verify AI_PROVIDER and API keys."
         ),
         "json_parse": (
-            "Try again, or use a smaller text-based PDF. If it persists, try PDF_ANALYSIS_MODEL=gpt-4o-mini "
-            "in the backend environment."
+            "Try again with a smaller PDF, or set PDF_ANALYSIS_MODEL to a different model ID for your provider."
         ),
         "generic": (
-            "See server logs for details. Ensure OPENAI_API_KEY is set on the backend and outbound HTTPS is allowed."
+            "See server logs. Ensure AI_PROVIDER and the matching API key are set; outbound HTTPS must be allowed."
         ),
     }
     return hints.get(reason, hints["generic"])
@@ -186,7 +190,9 @@ async def health_check():
         "status": "healthy",
         "service": "StockSense AI Backend",
         "version": "2.0.0",
-        "openai_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+        "ai_provider": get_provider_name(),
+        "llm_configured": is_llm_configured(),
+        "openai_configured": is_llm_configured(),
     }
 
 
@@ -241,8 +247,8 @@ async def analyze_pdf(file: UploadFile = File(...)):
 
         cleaned_text = clean_and_truncate_text(extracted_text, max_length=12000)
 
-        if not os.getenv("OPENAI_API_KEY", "").strip():
-            reason = "missing_api_key"
+        if not is_llm_configured():
+            reason = "missing_llm_key"
             analysis = create_fallback_analysis(cleaned_text, reason_code=reason)
             return AnalysisResponse(
                 **analysis,
@@ -447,24 +453,28 @@ Write **2 short paragraphs** (beginner-friendly):
 Avoid buy/sell commands."""
 
     try:
-        from ai_analyzer import get_openai_client
+        from ai_provider import get_llm
+        from ai_provider.config import get_provider_name
 
-        client = get_openai_client()
-        model = os.getenv("SENTIMENT_SUMMARY_MODEL", "gpt-4o-mini")
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
+        llm = get_llm()
+        if os.getenv("SENTIMENT_SUMMARY_MODEL"):
+            model = os.getenv("SENTIMENT_SUMMARY_MODEL", "").strip()
+        elif get_provider_name() == "groq":
+            model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+        else:
+            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+        return llm.chat(
+            [
                 {
                     "role": "system",
                     "content": "Clear, concise financial education for Indian readers. No markdown headings.",
                 },
                 {"role": "user", "content": sentiment_prompt},
             ],
+            model=model,
             temperature=0.45,
             max_tokens=400,
-            timeout=40,
-        )
-        return (response.choices[0].message.content or "").strip()
+        ).strip()
     except Exception as e:
         print(f"[Sentiment] summary LLM failed: {e}")
         return fallback_sentiment_explanation(sentiment, key_reasons)
