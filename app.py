@@ -19,10 +19,13 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     host = "0.0.0.0"
 
+    # Use the imported app object directly, not string import
+    # This ensures all middleware (including CORS) is properly initialized
     uvicorn.run(
-        "main:app",
+        app,
         host=host,
         port=port,
         reload=False,
         log_level="info"
     )
+

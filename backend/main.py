@@ -29,52 +29,33 @@ app = FastAPI(
 )
 
 # Configure CORS to allow requests from frontend
-# In production, allow all HTTPS origins (safe as this is a public API with no auth)
-# Development: also allow localhost
-# Environment variable ALLOWED_ORIGINS can restrict this if needed
-allowed_origins_str = os.getenv("ALLOWED_ORIGINS", None)
+# Default: Allow localhost (development) + all vercel.app domains (production)
+# Can be overridden with ALLOWED_ORIGINS environment variable
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", None)
 
-if allowed_origins_str:
-    # If explicitly set, use those origins (comma-separated)
-    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+if allowed_origins_env:
+    # If explicitly set via environment variable, use those exact origins
+    allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",")]
+    allow_origin_regex = None
 else:
-    # Default: allow all HTTPS origins (Vercel, other hosts) + localhost for development
-    # This is safe because:
-    # - No authentication required (public API)
-    # - Rate limiting can be added if needed
-    # - All requests to /analyze-pdf and /analyze-chart require file upload
+    # Default configuration: localhost for dev + regex for all vercel.app domains
     allowed_origins = [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
     ]
-    allow_all_origins = False
     allow_origin_regex = r"https://.*\.vercel\.app"
-else:
-    allow_all_origins = False
-    allow_origin_regex = None
 
-# Apply CORS middleware
-if allowed_origins_str:
-    # If ALLOWED_ORIGINS env var is set, use it exclusively
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    # Default: localhost + all vercel.app domains
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_origin_regex=r"https://.*\.vercel\.app",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# Add CORS middleware with proper configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_origin_regex=allow_origin_regex,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Pydantic models
