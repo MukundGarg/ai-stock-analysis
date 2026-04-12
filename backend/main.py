@@ -30,7 +30,12 @@ app = FastAPI(
 
 # Configure CORS to allow requests from frontend
 # In production, this will be set via ALLOWED_ORIGINS environment variable
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001").split(",")
+# Default: allow localhost for dev, any origin for production (safe since no auth needed)
+allowed_origins_str = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,https://ai-stock-analysis-orpin.vercel.app"
+)
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
