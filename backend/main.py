@@ -1,7 +1,7 @@
 """
 StockSense AI Backend - FastAPI Server
 
-Provides PDF analysis endpoint for financial report processing.
+Provides PDF and chart analysis endpoints for financial report processing.
 """
 
 import os
@@ -81,9 +81,28 @@ class ErrorResponse(BaseModel):
     details: str | None = None
 
 
+# Endpoints
+
+@app.get("/")
+async def root():
+    """Root endpoint - API information"""
+    return {
+        "name": "StockSense AI Backend",
+        "version": "1.0.0",
+        "status": "running",
+        "description": "AI-powered Stock Market Learning Platform Backend API",
+        "endpoints": {
+            "health": "/health (GET)",
+            "analyze_pdf": "/analyze-pdf (POST)",
+            "analyze_chart": "/analyze-chart (POST)"
+        },
+        "documentation": "/docs"
+    }
+
+
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint for deployment monitoring"""
     return {
         "status": "healthy",
         "service": "StockSense AI Backend",
@@ -253,55 +272,11 @@ async def analyze_chart_endpoint(file: UploadFile = File(...)):
         )
 
 
-@app.get("/")
-async def root():
-    """Root endpoint with API info"""
-    return {
-        "name": "StockSense AI Backend",
-        "version": "1.0.0",
-        "description": "AI-powered Stock Market Learning Platform API",
-        "endpoints": {
-            "health": "/health",
-            "analyze_pdf": "/analyze-pdf (POST)",
-            "analyze_chart": "/analyze-chart (POST)"
-        },
-        "docs": "/docs"
-    }
-
-
 # Error handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     """Custom HTTP exception handler"""
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": exc.detail,
-            "status_code": exc.status_code
-        }
-    )
-
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """Catch-all exception handler"""
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal server error",
-            "details": str(exc)
-        }
-    )
-
-
-# Run the server
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+        content={"error": exc.detail},
     )
