@@ -74,10 +74,15 @@ export default function ChartToolPage() {
       formData.append('file', file);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      console.log(`[Chart] API URL: ${apiUrl}`);
+      console.log(`[Chart] Uploading file: ${file.name}`);
+
       const response = await fetch(`${apiUrl}/analyze-chart`, {
         method: 'POST',
         body: formData,
       });
+
+      console.log(`[Chart] Response status: ${response.status}`);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -90,11 +95,14 @@ export default function ChartToolPage() {
       setAnalysis(result);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      console.error(`[Chart] Error:`, err);
+
       setError({
         message: 'Failed to analyze chart',
         details:
           errorMessage === 'Failed to fetch'
-            ? 'Backend server not running. Please start it on http://localhost:8000'
+            ? `Could not reach backend at ${apiUrl}. Check if backend is running and CORS is configured.`
             : errorMessage,
       });
       setFileName(null);

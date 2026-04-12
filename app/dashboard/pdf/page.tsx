@@ -61,10 +61,15 @@ export default function PDFToolPage() {
       formData.append('file', file);
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      console.log(`[PDF] API URL: ${apiUrl}`);
+      console.log(`[PDF] Uploading file: ${file.name}`);
+
       const response = await fetch(`${apiUrl}/analyze-pdf`, {
         method: 'POST',
         body: formData,
       });
+
+      console.log(`[PDF] Response status: ${response.status}`);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -77,11 +82,14 @@ export default function PDFToolPage() {
       setAnalysis(result);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      console.error(`[PDF] Error:`, err);
+
       setError({
         message: 'Failed to analyze PDF',
         details:
           errorMessage === 'Failed to fetch'
-            ? 'Backend server not running. Please start it on http://localhost:8000'
+            ? `Could not reach backend at ${apiUrl}. Check if backend is running and CORS is configured.`
             : errorMessage,
       });
       setFileName(null);
