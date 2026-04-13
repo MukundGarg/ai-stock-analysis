@@ -236,7 +236,7 @@ def create_fallback_analysis(
             "See the technical detail below (billing, model name, or key). "
             "Below is a basic keyword scan of the extracted text only."
         ),
-        "openai_error": (
+        "provider_error": (
             "Full AI analysis failed when calling the LLM. "
             "Below is a basic keyword scan of the extracted text only."
         ),

@@ -152,7 +152,7 @@ def _pdf_setup_hint(reason: str, detail: str) -> str:
             "The LLM returned an error (see Technical detail below). Check model names (e.g. gemini-2.0-flash, "
             "llama-3.3-70b-versatile), API key scope, quotas, and Render logs."
         ),
-        "openai_error": (
+        "provider_error": (
             "The LLM returned an error — see Technical detail below and verify AI_PROVIDER and API keys."
         ),
         "json_parse": (
@@ -192,7 +192,6 @@ async def health_check():
         "version": "2.0.0",
         "ai_provider": get_provider_name(),
         "llm_configured": is_llm_configured(),
-        "openai_configured": is_llm_configured(),
     }
 
 
