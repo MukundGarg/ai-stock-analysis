@@ -166,6 +166,7 @@ def enrich_sentiment_with_llm(
     try:
         from ai_provider import get_llm
         from ai_provider.config import get_provider_name
+        from ai_provider.constants import GEMINI_MODEL
 
         llm = get_llm()
         if os.getenv("SENTIMENT_MODEL"):
@@ -173,7 +174,7 @@ def enrich_sentiment_with_llm(
         elif get_provider_name() == "groq":
             model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
         else:
-            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+            model = os.getenv("GEMINI_MODEL", GEMINI_MODEL).strip()
 
         prompt = f"""User question: "{query}"
 

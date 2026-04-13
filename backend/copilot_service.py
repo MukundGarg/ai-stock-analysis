@@ -13,6 +13,7 @@ from typing import Any
 from indian_market_context import INDIAN_MARKETS_REFERENCE
 from ai_provider import get_llm
 from ai_provider.config import get_provider_name
+from ai_provider.constants import GEMINI_MODEL
 
 _MAX_TURNS = 24
 _MAX_MESSAGE_CHARS = 4000
@@ -61,7 +62,7 @@ def _default_copilot_model() -> str:
         return os.getenv("COPILOT_MODEL", "").strip()
     if get_provider_name() == "groq":
         return os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
-    return os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+    return os.getenv("GEMINI_MODEL", GEMINI_MODEL).strip()
 
 
 def copilot_chat(

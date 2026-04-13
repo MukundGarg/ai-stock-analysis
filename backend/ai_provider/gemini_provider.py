@@ -7,6 +7,7 @@ from typing import Any
 
 import google.generativeai as genai
 
+from ai_provider.constants import GEMINI_MODEL, GEMINI_VISION_MODEL
 from ai_provider.errors import LLMProviderError
 
 
@@ -50,7 +51,7 @@ class GeminiProvider:
         temperature: float = 0.5,
         max_tokens: int = 2048,
     ) -> str:
-        model_name = (model or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")).strip()
+        model_name = (model or os.getenv("GEMINI_MODEL", GEMINI_MODEL)).strip()
         print(f"[gemini] Using model: {model_name}")
         system, rest = _split_messages(messages)
         try:
@@ -108,7 +109,7 @@ class GeminiProvider:
 
         from PIL import Image
 
-        model_name = (model or os.getenv("GEMINI_VISION_MODEL") or os.getenv("CHART_VISION_MODEL") or "gemini-1.5-flash").strip()
+        model_name = (model or os.getenv("GEMINI_VISION_MODEL") or os.getenv("CHART_VISION_MODEL") or GEMINI_VISION_MODEL).strip()
         try:
             img = Image.open(io.BytesIO(image_bytes))
             if img.mode not in ("RGB", "L"):

@@ -9,7 +9,9 @@ import os
 import re
 from typing import Any
 
-from ai_provider import LLMProviderError, get_llm, get_provider_name
+from ai_provider import get_llm, LLMProviderError
+from ai_provider.config import get_provider_name
+from ai_provider.constants import GEMINI_MODEL
 
 
 def _sanitize_for_client(text: str, max_len: int = 600) -> str:
@@ -65,8 +67,8 @@ def _pdf_model_pair() -> tuple[str, str]:
         primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "llama-3.1-8b-instant")
     else:
-        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gemini-1.5-flash")
+        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GEMINI_MODEL", GEMINI_MODEL)
+        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", GEMINI_MODEL)
     return primary.strip(), fallback.strip()
 
 

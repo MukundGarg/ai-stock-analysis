@@ -22,6 +22,7 @@ from ai_analyzer import (
 )
 from ai_provider import is_llm_configured
 from ai_provider.config import get_provider_name
+from ai_provider.constants import GEMINI_MODEL
 from chart_processor import analyze_chart
 from chart_vision import analyze_chart_vision, merge_vision_and_cv
 from copilot_service import copilot_chat
@@ -149,7 +150,7 @@ def _pdf_setup_hint(reason: str, detail: str) -> str:
             "Set GEMINI_API_KEY or GROQ_API_KEY (see missing_llm_key hint) on the API server."
         ),
         "llm_error": (
-            "The LLM returned an error (see Technical detail below). Check model names (e.g. gemini-1.5-flash, "
+            f"The LLM returned an error (see Technical detail below). Check model names (e.g. {GEMINI_MODEL}, "
             "llama-3.3-70b-versatile), API key scope, quotas, and Render logs."
         ),
         "provider_error": (
@@ -461,7 +462,7 @@ Avoid buy/sell commands."""
         elif get_provider_name() == "groq":
             model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
         else:
-            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+            model = os.getenv("GEMINI_MODEL", GEMINI_MODEL).strip()
         return llm.chat(
             [
                 {
