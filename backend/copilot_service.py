@@ -61,7 +61,7 @@ def _default_copilot_model() -> str:
         return os.getenv("COPILOT_MODEL", "").strip()
     if get_provider_name() == "groq":
         return os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
-    return os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+    return os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
 
 
 def copilot_chat(
