@@ -65,8 +65,8 @@ def _pdf_model_pair() -> tuple[str, str]:
         primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "llama-3.1-8b-instant")
     else:
-        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gemini-1.5-flash")
+        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GEMINI_MODEL", "gemini-1.5-flash-002")
+        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gemini-1.5-flash-002")
     return primary.strip(), fallback.strip()
 
 

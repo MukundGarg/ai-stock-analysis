@@ -149,7 +149,7 @@ def _pdf_setup_hint(reason: str, detail: str) -> str:
             "Set GEMINI_API_KEY or GROQ_API_KEY (see missing_llm_key hint) on the API server."
         ),
         "llm_error": (
-            "The LLM returned an error (see Technical detail below). Check model names (e.g. gemini-2.0-flash, "
+            "The LLM returned an error (see Technical detail below). Check model names (e.g. gemini-1.5-flash-002, "
             "llama-3.3-70b-versatile), API key scope, quotas, and Render logs."
         ),
         "provider_error": (
@@ -461,7 +461,7 @@ Avoid buy/sell commands."""
         elif get_provider_name() == "groq":
             model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
         else:
-            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-002").strip()
         return llm.chat(
             [
                 {
