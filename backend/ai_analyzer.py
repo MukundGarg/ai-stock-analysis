@@ -65,8 +65,8 @@ def _pdf_model_pair() -> tuple[str, str]:
         primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "llama-3.1-8b-instant")
     else:
-        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GEMINI_MODEL", "gemini-1.5-flash-002")
-        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gemini-1.5-flash-002")
+        primary = os.getenv("PDF_ANALYSIS_MODEL") or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        fallback = os.getenv("PDF_ANALYSIS_MODEL_FALLBACK", "gemini-1.5-pro")
     return primary.strip(), fallback.strip()
 
 
@@ -111,6 +111,10 @@ Financial report excerpt:
         if m and m not in models:
             models.append(m)
 
+    print(f"[pdf] AI Provider: {get_provider_name()}")
+    print(f"[pdf] Available models: {models}")
+    print(f"[pdf] Primary model: {primary}")
+
     messages = [
         {"role": "system", "content": "You respond with valid JSON only. No markdown fences."},
         {"role": "user", "content": analysis_prompt},
@@ -118,12 +122,14 @@ Financial report excerpt:
 
     for idx, model in enumerate(models):
         try:
+            print(f"[pdf] Attempting analysis with model: {model}")
             response_text = llm.chat(
                 messages,
                 model=model,
                 temperature=0.35,
                 max_tokens=2200,
             )
+            print(f"[pdf] Successfully received response from model: {model}")
             analysis = _parse_json_response(response_text)
             result = _validate_and_normalize_analysis(analysis)
             if model != primary:

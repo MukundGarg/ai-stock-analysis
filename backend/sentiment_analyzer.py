@@ -173,7 +173,7 @@ def enrich_sentiment_with_llm(
         elif get_provider_name() == "groq":
             model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
         else:
-            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-002").strip()
+            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
 
         prompt = f"""User question: "{query}"
 

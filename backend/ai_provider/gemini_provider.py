@@ -50,13 +50,15 @@ class GeminiProvider:
         temperature: float = 0.5,
         max_tokens: int = 2048,
     ) -> str:
-        model_name = (model or os.getenv("GEMINI_MODEL", "gemini-1.5-flash-002")).strip()
+        model_name = (model or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")).strip()
+        print(f"[gemini] Using model: {model_name}")
         system, rest = _split_messages(messages)
         try:
             gen_model = genai.GenerativeModel(
                 model_name=model_name,
                 system_instruction=system,
             )
+            print(f"[gemini] Created GenerativeModel successfully")
             generation_config = genai.types.GenerationConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
@@ -106,7 +108,7 @@ class GeminiProvider:
 
         from PIL import Image
 
-        model_name = (model or os.getenv("GEMINI_VISION_MODEL") or os.getenv("CHART_VISION_MODEL") or "gemini-1.5-flash-002").strip()
+        model_name = (model or os.getenv("GEMINI_VISION_MODEL") or os.getenv("CHART_VISION_MODEL") or "gemini-1.5-flash").strip()
         try:
             img = Image.open(io.BytesIO(image_bytes))
             if img.mode not in ("RGB", "L"):

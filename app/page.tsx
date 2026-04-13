@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Logo from '@/components/Logo';
 
 export default function Home() {
   return (
@@ -12,6 +13,11 @@ export default function Home() {
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-20">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <Logo size="lg" showText={false} />
+          </div>
+
           <div className="inline-block mb-6">
             <span className="px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-sm font-medium">
               AI-Powered Stock Learning Platform
