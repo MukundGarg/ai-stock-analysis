@@ -1,11 +1,12 @@
-"""Google Gemini implementation."""
+"""Google Gemini implementation using modern google-genai SDK."""
 
 from __future__ import annotations
 
 import os
 from typing import Any
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from ai_provider.constants import GEMINI_MODEL, GEMINI_VISION_MODEL
 from ai_provider.errors import LLMProviderError
@@ -13,16 +14,13 @@ from ai_provider.errors import LLMProviderError
 
 def _response_text(response: Any) -> str:
     try:
-        return (response.text or "").strip()
+        if hasattr(response, "text"):
+            return response.text.strip()
+        if hasattr(response, "candidates") and response.candidates:
+            return response.candidates[0].content.parts[0].text.strip()
+        return ""
     except Exception:
-        parts = []
-        for c in getattr(response, "candidates", []) or []:
-            content = getattr(c, "content", None)
-            if content and getattr(content, "parts", None):
-                for p in content.parts:
-                    if getattr(p, "text", None):
-                        parts.append(p.text)
-        return "\n".join(parts).strip()
+        return ""
 
 
 def _split_messages(messages: list[dict[str, str]]) -> tuple[str | None, list[dict[str, str]]]:
@@ -41,7 +39,7 @@ def _split_messages(messages: list[dict[str, str]]) -> tuple[str | None, list[di
 
 class GeminiProvider:
     def __init__(self, api_key: str) -> None:
-        genai.configure(api_key=api_key)
+        self.client = genai.Client(api_key=api_key)
 
     def chat(
         self,
@@ -54,43 +52,42 @@ class GeminiProvider:
         model_name = (model or os.getenv("GEMINI_MODEL", GEMINI_MODEL)).strip()
         print(f"[gemini] Using model: {model_name}")
         system, rest = _split_messages(messages)
+        
         try:
-            gen_model = genai.GenerativeModel(
-                model_name=model_name,
-                system_instruction=system,
-            )
-            print(f"[gemini] Created GenerativeModel successfully")
-            generation_config = genai.types.GenerationConfig(
+            print(f"[gemini] Creating generation config")
+            config = types.GenerateContentConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
+                system_instruction=system,
             )
+            
             if len(rest) == 1 and rest[0].get("role") == "user":
-                resp = gen_model.generate_content(
-                    rest[0]["content"],
-                    generation_config=generation_config,
+                print(f"[gemini] Single message request")
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=rest[0]["content"],
+                    config=config,
                 )
-                return _response_text(resp)
+                return _response_text(response)
 
-            history: list[dict[str, Any]] = []
-            for m in rest[:-1]:
+            # Multi-turn chat
+            print(f"[gemini] Multi-turn chat request")
+            contents = []
+            for m in rest:
                 if m["role"] == "user":
-                    history.append({"role": "user", "parts": [m["content"]]})
+                    contents.append(m["content"])
                 elif m["role"] == "assistant":
-                    history.append({"role": "model", "parts": [m["content"]]})
+                    contents.append({"role": "model", "parts": [m["content"]]})
 
-            if not rest:
+            if not contents:
                 raise LLMProviderError("No user message in chat request")
 
-            last = rest[-1]
-            if last.get("role") != "user":
-                raise LLMProviderError("Last chat message must be from the user")
-
-            chat = gen_model.start_chat(history=history)
-            resp = chat.send_message(
-                last["content"],
-                generation_config=generation_config,
+            response = self.client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=config,
             )
-            return _response_text(resp)
+            return _response_text(response)
         except LLMProviderError:
             raise
         except Exception as e:
@@ -114,15 +111,22 @@ class GeminiProvider:
             img = Image.open(io.BytesIO(image_bytes))
             if img.mode not in ("RGB", "L"):
                 img = img.convert("RGB")
-            gen_model = genai.GenerativeModel(model_name=model_name)
-            generation_config = genai.types.GenerationConfig(
+            
+            # Convert image to bytes for new SDK
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='PNG')
+            img_bytes = img_byte_arr.getvalue()
+            
+            config = types.GenerateContentConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
             )
-            resp = gen_model.generate_content(
-                [prompt, img],
-                generation_config=generation_config,
+            
+            response = self.client.models.generate_content(
+                model=model_name,
+                contents=[prompt, types.Part.from_bytes(data=img_bytes, mime_type="image/png")],
+                config=config,
             )
-            return _response_text(resp)
+            return _response_text(response)
         except Exception as e:
             raise LLMProviderError(f"Gemini vision error: {e}") from e
