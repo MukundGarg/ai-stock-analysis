@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCopilot } from '@/context/CopilotContext';
 import { getApiUrl } from '@/lib/api';
+import { normalizeAnalysis } from '@/utils/normalizeAnalysis';
 import { useRef, useState } from 'react';
 
 interface MarketSignal {
@@ -81,21 +82,7 @@ export default function PDFToolPage() {
       }
 
       const result = (await response.json()) as AnalysisResult;
-      const normalizedAnalysis = {
-        executive_summary: result.executive_summary || "",
-        ai_market_signal: result.ai_market_signal || { rating: "Neutral", confidence: 50, reason: "" },
-        company_snapshot: result.company_snapshot || "",
-        strategic_intent: result.strategic_intent || [],
-        key_insights: result.key_insights || [],
-        key_positives: result.key_positives || [],
-        risks: result.risks || [],
-        analyst_watchlist: result.analyst_watchlist || [],
-        beginner_walkthrough: result.beginner_walkthrough || "",
-        analysis_mode: result.analysis_mode,
-        fallback_reason: result.fallback_reason,
-        setup_hint: result.setup_hint,
-        fallback_detail: result.fallback_detail,
-      };
+      const normalizedAnalysis = normalizeAnalysis(result);
       setAnalysis(normalizedAnalysis);
       setLastPdfAnalysis(result, '/dashboard/pdf');
     } catch (err) {
