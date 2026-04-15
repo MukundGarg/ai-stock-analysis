@@ -78,35 +78,81 @@ def analyze_financial_report(text: str) -> dict[str, Any]:
     Tries primary model then fallback when the failure looks retryable.
     """
 
-    analysis_prompt = f"""You are an AI equity research assistant explaining corporate filings to investors.
+    analysis_prompt = f"""You are an AI equity research analyst who explains corporate filings to investors.
 
-Analyze the provided document and generate a concise analyst-style briefing.
+Analyze the provided document and generate a concise financial analysis.
 
-All explanations must be short and easy to understand.
+All explanations must be brief and structured.
 
-Strict rules:
-- Keep explanations brief (1–2 sentences max)
-- Bullet points should be short and clear
-- Facts must only come from the document
-- Any prediction must be labeled "Possible"
-- Avoid long paragraphs
-- Avoid generic statements
-- If information is missing say "Not mentioned in the document"
+Return the analysis in the following sections.
+
+EXECUTIVE SUMMARY
+Provide a 1–2 sentence explanation of the filing.
+
+AI MARKET SIGNAL
+Classify the filing sentiment as:
+
+Bullish
+Neutral
+Bearish
+
+Provide:
+
+Signal
+Confidence (0–100)
+Reason (max 2 sentences)
+
+COMPANY SNAPSHOT
+Briefly explain what the company does and why this filing matters.
+
+POSSIBLE STRATEGIC INTENT
+List 2–4 possible motives behind the filing.
+
+Each must start with "Possible".
+
+KEY INSIGHTS
+Extract important facts from the document.
+
+Examples:
+Company name
+Important dates
+Stock symbols
+Regulatory references
+
+Use bullet points.
+
+RISKS
+List 2–4 potential risks related to the announcement.
+
+WHAT ANALYSTS WILL WATCH NEXT
+List 3–5 key developments analysts will monitor.
+
+BEGINNER WALKTHROUGH
+Explain the filing in simple language for beginner investors.
+
+Limit to 2–3 sentences.
+
+IMPORTANT RULES
+Facts must come only from the document.
+
+Speculation must be labeled as "Possible".
+
+Avoid long paragraphs.
 
 Return ONLY valid JSON (no markdown) with exactly this structure:
 {{
-    "summary": "1-2 sentence summary of the main announcement",
+    "summary": "1-2 sentence explanation of the filing",
     "market_signal": {{
         "rating": "Bullish, Neutral, or Bearish",
         "confidence": "0-100 confidence score",
         "reason": "Short reasoning (max 2 sentences)"
     }},
-    "company_summary": "1-2 sentences explaining what the company does and its context",
-    "strategic_intent": ["2-4 possible strategic motives behind the announcement, each starting with 'Possible'"],
-    "key_insights": ["Key factual information: company name, important dates, stock symbols, regulatory references, major entities mentioned"],
+    "company_summary": "Brief explanation of what the company does and why this filing matters",
+    "strategic_intent": ["2-4 possible motives, each starting with 'Possible'"],
+    "key_insights": ["Important facts: company name, dates, stock symbols, regulatory references"],
     "key_positives": ["2-4 strengths or positives from the filing"],
-    "risks": ["2-4 potential risks identified"],
-    "analyst_watchlist": ["3-5 things analysts typically monitor after such announcements"],
+    "risks": ["2-4 potential risks related to the announcement"],
+    "analyst_watchlist": ["3-5 key developments analysts will monitor"],
     "opportunities": ["2-4 growth or strategic opportunities mentioned or implied"],
     "important_extracted_data": {{"metric1": "value1", "metric2": "value2"}},
     "future_outlook": "1-2 sentences on outlook and uncertainties"
