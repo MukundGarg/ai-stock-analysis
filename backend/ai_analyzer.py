@@ -85,7 +85,7 @@ Analyze the provided document and generate a concise analyst-style briefing.
 All explanations must be short and easy to understand.
 
 Strict rules:
-- Keep explanations brief (1–3 sentences max)
+- Keep explanations brief (1–2 sentences max)
 - Bullet points should be short and clear
 - Facts must only come from the document
 - Any prediction must be labeled "Possible"
@@ -95,20 +95,21 @@ Strict rules:
 
 Return ONLY valid JSON (no markdown) with exactly this structure:
 {{
-    "executive_summary": "1-2 sentence summary explaining the main announcement",
+    "summary": "1-2 sentence summary of the main announcement",
     "market_signal": {{
         "rating": "Bullish, Neutral, or Bearish",
         "confidence": "0-100 confidence score",
         "reason": "Short reasoning (max 2 sentences)"
     }},
-    "company_snapshot": "1-2 sentences explaining why companies usually issue this type of filing",
+    "company_summary": "1-2 sentences explaining what the company does and its context",
     "strategic_intent": ["2-4 possible strategic motives behind the announcement, each starting with 'Possible'"],
     "key_insights": ["Key factual information: company name, important dates, stock symbols, regulatory references, major entities mentioned"],
+    "key_positives": ["2-4 strengths or positives from the filing"],
     "risks": ["2-4 potential risks identified"],
     "analyst_watchlist": ["3-5 things analysts typically monitor after such announcements"],
-    "beginner_walkthrough": "2-3 sentences explaining the filing in simple language for new investors",
-    "key_facts_table": {{"Company Name": "value", "Board Meeting Date": "value", "Stock Exchange Codes": "value", "Document Date": "value"}},
-    "suggested_questions": ["3 suggested questions users may ask about this filing"]
+    "opportunities": ["2-4 growth or strategic opportunities mentioned or implied"],
+    "important_extracted_data": {{"metric1": "value1", "metric2": "value2"}},
+    "future_outlook": "1-2 sentences on outlook and uncertainties"
 }}
 
 Financial report excerpt:
@@ -178,23 +179,24 @@ def _parse_json_response(response_text: str) -> dict[str, Any]:
 
 def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     required = [
-        "executive_summary",
+        "summary",
         "market_signal",
-        "company_snapshot",
+        "company_summary",
         "strategic_intent",
         "key_insights",
+        "key_positives",
         "risks",
         "analyst_watchlist",
-        "beginner_walkthrough",
-        "key_facts_table",
-        "suggested_questions",
+        "opportunities",
+        "important_extracted_data",
+        "future_outlook",
     ]
     for key in required:
         if key not in analysis:
             raise ValueError(f"AI response missing required field: {key}")
 
     # Normalize list fields
-    for list_key in ("strategic_intent", "key_insights", "risks", "analyst_watchlist", "suggested_questions"):
+    for list_key in ("strategic_intent", "key_insights", "key_positives", "risks", "analyst_watchlist", "opportunities"):
         if not isinstance(analysis[list_key], list):
             analysis[list_key] = [str(analysis[list_key])]
         analysis[list_key] = [str(x) for x in analysis[list_key]][:10]
@@ -214,12 +216,12 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
         if "reason" not in analysis["market_signal"]:
             analysis["market_signal"]["reason"] = "Analysis completed"
 
-    # Normalize key_facts_table
-    if not isinstance(analysis["key_facts_table"], dict):
-        analysis["key_facts_table"] = {}
+    # Normalize important_extracted_data
+    if not isinstance(analysis["important_extracted_data"], dict):
+        analysis["important_extracted_data"] = {}
 
     # Limit text field lengths
-    for text_key in ("executive_summary", "company_snapshot", "beginner_walkthrough"):
+    for text_key in ("summary", "company_summary", "future_outlook"):
         analysis[text_key] = str(analysis[text_key])[:4000]
 
     return analysis
@@ -303,32 +305,26 @@ def create_fallback_analysis(
         strategic_intent.append("Possible strategic move requires full analysis.")
 
     return {
-        "executive_summary": summary,
+        "summary": summary,
         "market_signal": {
             "rating": "Neutral",
             "confidence": "50",
             "reason": "Market signal requires full AI analysis"
         },
-        "company_snapshot": "Company context requires full AI analysis or manual reading of the document.",
+        "company_summary": "Company context requires full AI analysis or manual reading of the document.",
         "strategic_intent": strategic_intent[:4],
         "key_insights": key_insights[:5],
+        "key_positives": ["Review the full document for complete positive insights."],
         "risks": risks[:4] if risks else ["No major risks detected in fallback mode."],
         "analyst_watchlist": [
             "Review revenue, margins, and cash flow trends.",
             "Monitor debt levels and covenants.",
             "Track management commentary on strategy."
         ],
-        "beginner_walkthrough": (
-            "Financial reports contain important company information. "
-            "This automated view provides basic insights; enable AI for complete analysis."
-        ),
-        "key_facts_table": {
+        "opportunities": ["Scan for growth opportunities in the complete document."],
+        "important_extracted_data": {
             "analysis_mode": "Fallback",
             "recommendation": "Enable AI for complete analysis"
         },
-        "suggested_questions": [
-            "What are the key financial metrics?",
-            "Are there any major risks mentioned?",
-            "What is the company's strategic direction?"
-        ]
+        "future_outlook": "Outlook requires full AI analysis or manual reading of management commentary."
     }

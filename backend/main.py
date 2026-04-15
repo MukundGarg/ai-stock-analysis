@@ -28,38 +28,6 @@ from chart_vision import analyze_chart_vision, merge_vision_and_cv
 from copilot_service import copilot_chat
 from indian_market_context import INDIAN_MARKETS_STRUCTURED
 from news_fetcher import fetch_financial_news
-
-
-def transform_analysis_to_old_schema(new_analysis: dict[str, Any]) -> dict[str, Any]:
-    """Transform new AI analysis structure to old frontend-compatible schema."""
-    # Convert key_facts_table dict to list of ExtractedDatum
-    important_extracted_data: list[dict[str, str]] = []
-    if isinstance(new_analysis.get("key_facts_table"), dict):
-        for key, value in new_analysis["key_facts_table"].items():
-            important_extracted_data.append({
-                "label": key,
-                "value_or_figure": str(value),
-                "why_it_matters": ""
-            })
-    
-    # Convert suggested_questions list to string for future_outlook
-    suggested_questions = new_analysis.get("suggested_questions", [])
-    if isinstance(suggested_questions, list):
-        future_outlook = "; ".join(str(x) for x in suggested_questions)
-    else:
-        future_outlook = str(suggested_questions)
-    
-    return {
-        "summary": new_analysis.get("executive_summary", ""),
-        "key_insights": new_analysis.get("key_insights", []),
-        "key_positives": new_analysis.get("strategic_intent", []),
-        "risks": new_analysis.get("risks", []),
-        "opportunities": new_analysis.get("analyst_watchlist", []),
-        "important_extracted_data": important_extracted_data,
-        "beginner_explanation": new_analysis.get("beginner_walkthrough", ""),
-        "company_summary": new_analysis.get("company_snapshot", ""),
-        "future_outlook": future_outlook,
-    }
 from pdf_parser import clean_and_truncate_text, extract_text_from_pdf
 from pattern_detector import detect_pattern
 from sentiment_analyzer import analyze_sentiment, enrich_sentiment_with_llm
@@ -96,22 +64,18 @@ app.add_middleware(
 )
 
 
-class ExtractedDatum(BaseModel):
-    label: str
-    value_or_figure: str
-    why_it_matters: str
-
-
 class AnalysisResponse(BaseModel):
     summary: str
     key_insights: list[str]
     key_positives: list[str]
     risks: list[str]
     opportunities: list[str]
-    important_extracted_data: list[ExtractedDatum]
-    beginner_explanation: str
+    important_extracted_data: dict = {}
     company_summary: str
     future_outlook: str
+    market_signal: dict | None = None
+    strategic_intent: list[str] = []
+    analyst_watchlist: list[str] = []
     analysis_mode: Literal["ai", "fallback"] = "ai"
     fallback_reason: str | None = None
     setup_hint: str | None = None
@@ -282,9 +246,8 @@ async def analyze_pdf(file: UploadFile = File(...)):
         if not is_llm_configured():
             reason = "missing_llm_key"
             analysis = create_fallback_analysis(cleaned_text, reason_code=reason)
-            transformed_analysis = transform_analysis_to_old_schema(analysis)
             return AnalysisResponse(
-                **transformed_analysis,
+                **analysis,
                 analysis_mode="fallback",
                 fallback_reason=reason,
                 setup_hint=_pdf_setup_hint(reason, ""),
@@ -294,9 +257,8 @@ async def analyze_pdf(file: UploadFile = File(...)):
         try:
             analysis = analyze_financial_report(cleaned_text)
             analysis.pop("_pdf_model_used", None)
-            transformed_analysis = transform_analysis_to_old_schema(analysis)
             return AnalysisResponse(
-                **transformed_analysis,
+                **analysis,
                 analysis_mode="ai",
                 fallback_reason=None,
                 setup_hint=None,
@@ -306,9 +268,8 @@ async def analyze_pdf(file: UploadFile = File(...)):
             print(f"AI analysis failed: {e}. Using fallback.")
             reason = classify_financial_analysis_error(e)
             analysis = create_fallback_analysis(cleaned_text, reason_code=reason)
-            transformed_analysis = transform_analysis_to_old_schema(analysis)
             return AnalysisResponse(
-                **transformed_analysis,
+                **analysis,
                 analysis_mode="fallback",
                 fallback_reason=reason,
                 setup_hint=_pdf_setup_hint(reason, str(e)),
