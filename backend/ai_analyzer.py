@@ -78,29 +78,34 @@ def analyze_financial_report(text: str) -> dict[str, Any]:
     Tries primary model then fallback when the failure looks retryable.
     """
 
-    analysis_prompt = f"""You are a financial analyst helping **Indian retail investors and beginners** understand company documents (annual reports, quarterly results, investor presentations, US-style 10-K/10-Q, or Indian filings).
+    analysis_prompt = f"""You are an experienced equity research analyst explaining corporate filings to investors.
 
-Analyze the excerpt. If the document is not in INR, still explain clearly and mention currency when relevant.
+Analyze the document and generate structured insights.
+
+Strict rules:
+Facts must come only from the document.
+Never invent financial numbers.
+Speculative analysis must be clearly labeled as "Possible scenario".
+If information is missing say "Not mentioned in the document".
 
 Return ONLY valid JSON (no markdown) with exactly this structure:
 {{
-    "summary": "3-5 sentence executive summary in plain English",
-    "key_insights": ["4-6 bullets of non-obvious insights from the text"],
-    "key_positives": ["3-5 strengths or positives"],
-    "risks": ["3-5 concrete risks or red flags"],
-    "opportunities": ["3-5 growth or strategic opportunities mentioned or reasonably implied"],
-    "important_extracted_data": [
-        {{"label": "metric name", "value_or_figure": "number or range if present, else best textual value", "why_it_matters": "one sentence for beginners"}}
-    ],
-    "beginner_explanation": "Short paragraph explaining how to read this document and what a beginner should focus on next",
-    "company_summary": "2-3 sentences: what the business does and scale/context",
-    "future_outlook": "2-4 sentences on outlook, catalysts, and uncertainties"
+    "document_type": "Type of filing (e.g., Board meeting notice, Earnings report, Annual report, Corporate announcement, Investor presentation)",
+    "verified_facts": ["List of factual information: company name, event, dates, regulatory references, financial numbers"],
+    "company_message": "Explain what the company is communicating to investors",
+    "industry_context": "Explain why companies typically make this type of announcement",
+    "possible_scenarios": ["3-5 realistic possibilities, each labeled as 'Possible scenario'"],
+    "market_signal": {{
+        "rating": "Bullish, Neutral, or Bearish",
+        "confidence": "0-100 confidence score",
+        "reason": "2-3 lines explaining the reasoning"
+    }},
+    "risk_signals": ["Identify potential risk indicators: dilution, debt increase, regulatory concerns, operational uncertainty. If none, say 'No major risk signals detected in the document.'"],
+    "analyst_watchlist": ["Key factors investors will monitor after this filing"],
+    "beginner_explanation": "Explain the filing in plain English so that a beginner investor can understand",
+    "corporate_intent": ["Classify possible strategic intent: expansion, refinancing, capital raise, restructuring"],
+    "key_facts_table": {{"fact1": "value1", "fact2": "value2"}}
 }}
-
-Rules:
-- If a field has no basis in the text, write "Not clearly stated in excerpt" for that part rather than inventing numbers.
-- Prefer actionable *education*, not buy/sell commands.
-- Use simple language; avoid unexplained jargon.
 
 Financial report excerpt:
 {text}
@@ -169,41 +174,50 @@ def _parse_json_response(response_text: str) -> dict[str, Any]:
 
 def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     required = [
-        "summary",
-        "key_insights",
-        "key_positives",
-        "risks",
-        "opportunities",
-        "important_extracted_data",
+        "document_type",
+        "verified_facts",
+        "company_message",
+        "industry_context",
+        "possible_scenarios",
+        "market_signal",
+        "risk_signals",
+        "analyst_watchlist",
         "beginner_explanation",
-        "company_summary",
-        "future_outlook",
+        "corporate_intent",
+        "key_facts_table",
     ]
     for key in required:
         if key not in analysis:
             raise ValueError(f"AI response missing required field: {key}")
 
-    for list_key in ("key_insights", "key_positives", "risks", "opportunities"):
+    # Normalize list fields
+    for list_key in ("verified_facts", "possible_scenarios", "risk_signals", "analyst_watchlist", "corporate_intent"):
         if not isinstance(analysis[list_key], list):
             analysis[list_key] = [str(analysis[list_key])]
-        analysis[list_key] = [str(x) for x in analysis[list_key]][:8]
+        analysis[list_key] = [str(x) for x in analysis[list_key]][:10]
 
-    raw_data = analysis["important_extracted_data"]
-    normalized_data: list[dict[str, str]] = []
-    if isinstance(raw_data, list):
-        for item in raw_data[:12]:
-            if isinstance(item, dict):
-                normalized_data.append(
-                    {
-                        "label": str(item.get("label", "Item"))[:200],
-                        "value_or_figure": str(item.get("value_or_figure", ""))[:300],
-                        "why_it_matters": str(item.get("why_it_matters", ""))[:400],
-                    }
-                )
-    analysis["important_extracted_data"] = normalized_data
+    # Normalize market_signal nested object
+    if not isinstance(analysis["market_signal"], dict):
+        analysis["market_signal"] = {
+            "rating": "Neutral",
+            "confidence": "50",
+            "reason": str(analysis["market_signal"])
+        }
+    else:
+        if "rating" not in analysis["market_signal"]:
+            analysis["market_signal"]["rating"] = "Neutral"
+        if "confidence" not in analysis["market_signal"]:
+            analysis["market_signal"]["confidence"] = "50"
+        if "reason" not in analysis["market_signal"]:
+            analysis["market_signal"]["reason"] = "Analysis completed"
 
-    for text_key in ("summary", "beginner_explanation", "company_summary", "future_outlook"):
-        analysis[text_key] = str(analysis[text_key])[:6000]
+    # Normalize key_facts_table
+    if not isinstance(analysis["key_facts_table"], dict):
+        analysis["key_facts_table"] = {}
+
+    # Limit text field lengths
+    for text_key in ("company_message", "industry_context", "beginner_explanation"):
+        analysis[text_key] = str(analysis[text_key])[:8000]
 
     return analysis
 
@@ -261,51 +275,54 @@ def create_fallback_analysis(
     summary = summaries.get(key, summaries["generic"])
 
     text_lower = text.lower()
-    key_positives: list[str] = []
-    risks: list[str] = []
-    opportunities: list[str] = []
+    verified_facts: list[str] = []
+    risk_signals: list[str] = []
+    possible_scenarios: list[str] = []
 
-    if "revenue" in text_lower and ("growth" in text_lower or "increase" in text_lower):
-        key_positives.append("Revenue growth is mentioned in the document.")
+    if "revenue" in text_lower:
+        verified_facts.append("Revenue-related information appears in the document.")
     if "profit" in text_lower or "pat" in text_lower:
-        key_positives.append("Profitability metrics appear in the excerpt.")
-    if "ebitda" in text_lower or "margin" in text_lower:
-        key_positives.append("Margin-related discussion is present — review trend vs prior periods.")
-
-    if "loss" in text_lower:
-        risks.append("Losses or negative results are referenced — read the full context.")
+        verified_facts.append("Profitability metrics appear in the excerpt.")
     if "debt" in text_lower or "borrowing" in text_lower:
-        risks.append("Debt or leverage is mentioned — assess coverage and covenants in the full filing.")
+        risk_signals.append("Debt or leverage is mentioned — assess coverage and covenants in the full filing.")
     if "litigation" in text_lower or "regulatory" in text_lower:
-        risks.append("Legal or regulatory items may need closer reading.")
-
+        risk_signals.append("Legal or regulatory items may need closer reading.")
     if "expansion" in text_lower or "capacity" in text_lower:
-        opportunities.append("Expansion or capacity commentary may signal future revenue optionality.")
+        possible_scenarios.append("Possible scenario: Expansion or capacity commentary may signal future revenue optionality.")
     if "digital" in text_lower or "new product" in text_lower:
-        opportunities.append("New initiatives or digital themes are referenced.")
+        possible_scenarios.append("Possible scenario: New initiatives or digital themes are referenced.")
 
-    while len(key_positives) < 3:
-        key_positives.append("Review revenue, margins, and cash flow trends in the full report.")
-    while len(risks) < 3:
-        risks.append("Read risk factors and contingent liabilities in the complete document.")
-    while len(opportunities) < 2:
-        opportunities.append("Scan management discussion for strategy and capex plans.")
+    while len(verified_facts) < 3:
+        verified_facts.append("Review the full document for complete factual information.")
+    while len(risk_signals) < 3:
+        risk_signals.append("Read risk factors and contingent liabilities in the complete document.")
+    while len(possible_scenarios) < 3:
+        possible_scenarios.append("Possible scenario: Additional analysis required for scenario assessment.")
 
     return {
-        "summary": summary,
-        "key_insights": [
-            "Fallback mode: insights are generic; enable AI for document-specific takeaways.",
-            "Compare this period with the prior year and with peer companies in the same sector.",
-            "Check cash flow vs profit — quality of earnings matters.",
+        "document_type": "Could not determine document type in fallback mode",
+        "verified_facts": verified_facts[:5],
+        "company_message": summary,
+        "industry_context": "Industry context requires full AI analysis or manual reading of the document.",
+        "possible_scenarios": possible_scenarios[:5],
+        "market_signal": {
+            "rating": "Neutral",
+            "confidence": "50",
+            "reason": "Market signal requires full AI analysis"
+        },
+        "risk_signals": risk_signals[:5] if risk_signals else ["No major risk signals detected in the document."],
+        "analyst_watchlist": [
+            "Review revenue, margins, and cash flow trends in the full report.",
+            "Monitor debt levels and covenants.",
+            "Track management commentary on strategy and outlook."
         ],
-        "key_positives": key_positives[:5],
-        "risks": risks[:5],
-        "opportunities": opportunities[:5],
-        "important_extracted_data": [],
         "beginner_explanation": (
             "Financial reports are long on purpose. Start with the summary, key numbers, and risk section, "
             "then dig into notes. This automated view is educational, not advice."
         ),
-        "company_summary": "Company context could not be reliably inferred in fallback mode.",
-        "future_outlook": "Outlook requires full AI analysis or manual reading of management commentary.",
+        "corporate_intent": ["Corporate intent requires full AI analysis or manual reading"],
+        "key_facts_table": {
+            "analysis_mode": "Fallback",
+            "recommendation": "Enable AI for complete analysis"
+        }
     }
