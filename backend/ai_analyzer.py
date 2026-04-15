@@ -123,7 +123,7 @@ Financial report excerpt:
     print(f"[pdf] Primary model: {primary}")
 
     messages = [
-        {"role": "system", "content": "You respond with valid JSON only. No markdown fences."},
+        {"role": "system", "content": "You are a JSON-only API. You MUST respond with valid JSON only. Do not include any text outside the JSON. Do not use markdown code fences. Do not include headings or explanations. Return ONLY the JSON object."},
         {"role": "user", "content": analysis_prompt},
     ]
 
@@ -137,7 +137,9 @@ Financial report excerpt:
                 max_tokens=2200,
             )
             print(f"[pdf] Successfully received response from model: {model}")
+            print(f"[pdf] Raw AI response (first 500 chars): {response_text[:500]}")
             analysis = _parse_json_response(response_text)
+            print(f"[pdf] Successfully parsed JSON, keys: {list(analysis.keys())}")
             result = _validate_and_normalize_analysis(analysis)
             if model != primary:
                 result["_pdf_model_used"] = model
@@ -161,9 +163,21 @@ def sanitize_for_api_response(text: str, max_len: int = 600) -> str:
 
 def _parse_json_response(response_text: str) -> dict[str, Any]:
     """Parse JSON response using json.loads with safe fallback."""
+    # Strip markdown code fences if present
+    text = response_text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
     try:
-        return json.loads(response_text)
-    except json.JSONDecodeError:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        print(f"[pdf] JSON parse error: {e}")
+        print(f"[pdf] Attempted to parse: {text[:500]}")
         raise ValueError("Could not parse AI response as JSON") from None
 
 
