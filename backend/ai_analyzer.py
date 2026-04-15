@@ -82,86 +82,29 @@ def analyze_financial_report(text: str) -> dict[str, Any]:
 
 Analyze the provided document and generate a concise financial analysis.
 
-All explanations must be brief and structured.
+IMPORTANT RULES:
+- Return ONLY valid JSON (no markdown, no headings, no text outside JSON)
+- Do not include section titles or formatting
+- All list fields must be arrays
+- If no items exist for a list field, return empty array []
+- Keep explanations brief (1-2 sentences)
+- Facts must come only from the document
+- Any speculation must be labeled "Possible"
 
-Return the analysis in the following sections.
-
-EXECUTIVE SUMMARY
-Provide a 1–2 sentence explanation of the filing.
-
-AI MARKET SIGNAL
-Classify the filing sentiment as:
-
-Bullish
-Neutral
-Bearish
-
-Provide:
-
-Signal
-Confidence (0–100)
-Reason (max 2 sentences)
-
-COMPANY SNAPSHOT
-Briefly explain what the company does and why this filing matters.
-
-POSSIBLE STRATEGIC INTENT
-List 2–4 possible motives behind the filing.
-
-Each must start with "Possible".
-
-KEY INSIGHTS
-Extract important facts from the document.
-
-Examples:
-Company name
-Important dates
-Stock symbols
-Regulatory references
-
-Use bullet points.
-
-KEY POSITIVES
-List 2–4 positive implications of the announcement.
-
-Examples:
-- potential expansion
-- improved liquidity
-- strategic financing
-
-RISKS
-List 2–4 potential risks related to the announcement.
-
-WHAT ANALYSTS WILL WATCH NEXT
-List 3–5 key developments analysts will monitor.
-
-BEGINNER WALKTHROUGH
-Explain the filing in simple language for beginner investors.
-
-Limit to 2–3 sentences.
-
-IMPORTANT RULES
-Facts must come only from the document.
-
-Speculation must be labeled as "Possible".
-
-Avoid long paragraphs.
-
-Return ONLY valid JSON (no markdown) with exactly this structure:
+Return JSON with exactly this structure:
 {{
     "executive_summary": "1-2 sentence explanation of the filing",
     "ai_market_signal": {{
-        "rating": "Bullish, Neutral, or Bearish",
-        "confidence": "0-100 confidence score",
-        "reason": "Short reasoning (max 2 sentences)"
+        "signal": "Bullish, Neutral, or Bearish",
+        "confidence": number (0-100)
     }},
     "company_snapshot": "Brief explanation of what the company does and why this filing matters",
-    "strategic_intent": ["2-4 possible motives, each starting with 'Possible'"],
+    "beginner_walkthrough": "Simple language explanation for beginner investors (2-3 sentences)",
     "key_insights": ["Important facts: company name, dates, stock symbols, regulatory references"],
+    "strategic_intent": ["2-4 possible motives, each starting with 'Possible'"],
     "key_positives": ["2-4 strengths or positives from the filing"],
     "risks": ["2-4 potential risks related to the announcement"],
-    "analyst_watchlist": ["3-5 key developments analysts will monitor"],
-    "beginner_walkthrough": "Simple language explanation for beginner investors (2-3 sentences)"
+    "analyst_watchlist": ["3-5 key developments analysts will monitor"]
 }}
 
 Financial report excerpt:
@@ -230,20 +173,19 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
     result: dict[str, Any] = {
         "executive_summary": analysis.get("executive_summary", ""),
         "ai_market_signal": analysis.get("ai_market_signal", {
-            "rating": "Neutral",
-            "confidence": "50",
-            "reason": "Analysis completed"
+            "signal": "Neutral",
+            "confidence": 50
         }),
         "company_snapshot": analysis.get("company_snapshot", ""),
-        "strategic_intent": analysis.get("strategic_intent", []),
+        "beginner_walkthrough": analysis.get("beginner_walkthrough", ""),
         "key_insights": analysis.get("key_insights", []),
+        "strategic_intent": analysis.get("strategic_intent", []),
         "key_positives": analysis.get("key_positives", []),
         "risks": analysis.get("risks", []),
         "analyst_watchlist": analysis.get("analyst_watchlist", []),
-        "beginner_walkthrough": analysis.get("beginner_walkthrough", ""),
     }
 
-    # Normalize list fields
+    # Normalize list fields - ensure they are always arrays
     for list_key in ("strategic_intent", "key_insights", "key_positives", "risks", "analyst_watchlist"):
         if not isinstance(result[list_key], list):
             result[list_key] = [str(result[list_key])]
@@ -252,17 +194,23 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
     # Normalize ai_market_signal nested object
     if not isinstance(result["ai_market_signal"], dict):
         result["ai_market_signal"] = {
-            "rating": "Neutral",
-            "confidence": "50",
-            "reason": str(result["ai_market_signal"])
+            "signal": "Neutral",
+            "confidence": 50
         }
     else:
-        if "rating" not in result["ai_market_signal"]:
-            result["ai_market_signal"]["rating"] = "Neutral"
+        # Support both old 'rating' and new 'signal' field names
+        if "signal" not in result["ai_market_signal"]:
+            result["ai_market_signal"]["signal"] = result["ai_market_signal"].get("rating", "Neutral")
         if "confidence" not in result["ai_market_signal"]:
-            result["ai_market_signal"]["confidence"] = "50"
-        if "reason" not in result["ai_market_signal"]:
-            result["ai_market_signal"]["reason"] = "Analysis completed"
+            result["ai_market_signal"]["confidence"] = 50
+        # Convert confidence to number
+        try:
+            result["ai_market_signal"]["confidence"] = int(result["ai_market_signal"]["confidence"])
+        except (ValueError, TypeError):
+            result["ai_market_signal"]["confidence"] = 50
+        # Remove old fields if present
+        result["ai_market_signal"].pop("rating", None)
+        result["ai_market_signal"].pop("reason", None)
 
     # Limit text field lengths
     for text_key in ("executive_summary", "company_snapshot", "beginner_walkthrough"):
@@ -351,11 +299,11 @@ def create_fallback_analysis(
     return {
         "executive_summary": summary,
         "ai_market_signal": {
-            "rating": "Neutral",
-            "confidence": "50",
-            "reason": "Market signal requires full AI analysis"
+            "signal": "Neutral",
+            "confidence": 50
         },
         "company_snapshot": "Company context requires full AI analysis or manual reading of the document.",
+        "beginner_walkthrough": "Financial reports contain important company information. This automated view provides basic insights; enable AI for complete analysis.",
         "strategic_intent": strategic_intent[:4],
         "key_insights": key_insights[:5],
         "key_positives": ["Review the full document for complete positive insights."],
@@ -364,6 +312,5 @@ def create_fallback_analysis(
             "Review revenue, margins, and cash flow trends.",
             "Monitor debt levels and covenants.",
             "Track management commentary on strategy."
-        ],
-        "beginner_walkthrough": "Financial reports contain important company information. This automated view provides basic insights; enable AI for complete analysis."
+        ]
     }

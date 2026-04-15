@@ -7,9 +7,8 @@ import { normalizeAnalysis } from '@/utils/normalizeAnalysis';
 import { useRef, useState } from 'react';
 
 interface MarketSignal {
-  rating: string;
-  confidence: string | number;
-  reason: string;
+  signal: string;
+  confidence: number;
 }
 
 interface AnalysisResult {
@@ -201,6 +200,12 @@ export default function PDFToolPage() {
                 </div>
               )}
 
+              {!analysis && !isLoading && (
+                <div className="text-center p-10">
+                  <p>Loading analysis...</p>
+                </div>
+              )}
+
               {analysis && !isLoading && (
                 <div className="space-y-8">
                   <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
@@ -258,13 +263,12 @@ export default function PDFToolPage() {
                       <h3 className="mb-3 text-xl font-bold text-blue-900 dark:text-blue-100">AI Market Signal</h3>
                       <div className="flex items-center gap-4">
                         <span className="rounded-full px-3 py-1 text-sm font-semibold bg-blue-600 text-white">
-                          {analysis.ai_market_signal.rating}
+                          {analysis.ai_market_signal.signal}
                         </span>
                         <span className="text-sm text-gray-600 dark:text-gray-400">
                           Confidence: {analysis.ai_market_signal.confidence}%
                         </span>
                       </div>
-                      <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{analysis.ai_market_signal.reason}</p>
                     </section>
                   )}
 
@@ -285,21 +289,21 @@ export default function PDFToolPage() {
                   <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
                     <h3 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">Key insights</h3>
                     <ul className="space-y-2">
-                      {(analysis.key_insights || []).map((x, i) => (
+                      {analysis.key_insights?.map((x, i) => (
                         <li key={i} className="flex gap-2 text-gray-700 dark:text-gray-300">
                           <span className="text-indigo-600 dark:text-indigo-400">•</span>
                           <span>{x}</span>
                         </li>
-                      ))}
+                      )) || <li className="text-gray-500 dark:text-gray-400">No insights available</li>}
                     </ul>
                   </section>
 
                   <section className="rounded-xl border border-purple-200 bg-purple-50/50 p-6 dark:border-purple-900 dark:bg-purple-950/30">
                     <h3 className="mb-4 text-xl font-bold text-purple-900 dark:text-purple-100">Possible strategic intent</h3>
                     <ul className="space-y-2 text-gray-700 dark:text-gray-300">
-                      {(analysis.strategic_intent || []).map((x, i) => (
+                      {analysis.strategic_intent?.map((x, i) => (
                         <li key={i}>• {x}</li>
-                      ))}
+                      )) || <li className="text-gray-500 dark:text-gray-400">No strategic intent available</li>}
                     </ul>
                   </section>
 
@@ -307,17 +311,17 @@ export default function PDFToolPage() {
                     <section className="rounded-xl border border-green-200 bg-white p-6 dark:border-green-900 dark:bg-gray-900">
                       <h3 className="mb-4 text-lg font-bold text-green-700 dark:text-green-400">Positives</h3>
                       <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                        {(analysis.key_positives || []).map((x, i) => (
+                        {analysis.key_positives?.map((x, i) => (
                           <li key={i}>• {x}</li>
-                        ))}
+                        )) || <li className="text-gray-500 dark:text-gray-400">No positives available</li>}
                       </ul>
                     </section>
                     <section className="rounded-xl border border-red-200 bg-white p-6 dark:border-red-900 dark:bg-gray-900">
                       <h3 className="mb-4 text-lg font-bold text-red-700 dark:text-red-400">Risks</h3>
                       <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                        {(analysis.risks || []).map((x, i) => (
+                        {analysis.risks?.map((x, i) => (
                           <li key={i}>• {x}</li>
-                        ))}
+                        )) || <li className="text-gray-500 dark:text-gray-400">No risks available</li>}
                       </ul>
                     </section>
                   </div>
@@ -325,9 +329,9 @@ export default function PDFToolPage() {
                   <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 dark:border-amber-900 dark:bg-amber-950/30">
                     <h3 className="mb-4 text-xl font-bold text-amber-900 dark:text-amber-100">What analysts will watch next</h3>
                     <ul className="space-y-2 text-gray-700 dark:text-gray-300">
-                      {(analysis.analyst_watchlist || []).map((x, i) => (
+                      {analysis.analyst_watchlist?.map((x, i) => (
                         <li key={i}>• {x}</li>
-                      ))}
+                      )) || <li className="text-gray-500 dark:text-gray-400">No watchlist available</li>}
                     </ul>
                   </section>
 
