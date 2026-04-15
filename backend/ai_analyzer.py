@@ -149,21 +149,19 @@ Avoid long paragraphs.
 
 Return ONLY valid JSON (no markdown) with exactly this structure:
 {{
-    "summary": "1-2 sentence explanation of the filing",
-    "market_signal": {{
+    "executive_summary": "1-2 sentence explanation of the filing",
+    "ai_market_signal": {{
         "rating": "Bullish, Neutral, or Bearish",
         "confidence": "0-100 confidence score",
         "reason": "Short reasoning (max 2 sentences)"
     }},
-    "company_summary": "Brief explanation of what the company does and why this filing matters",
+    "company_snapshot": "Brief explanation of what the company does and why this filing matters",
     "strategic_intent": ["2-4 possible motives, each starting with 'Possible'"],
     "key_insights": ["Important facts: company name, dates, stock symbols, regulatory references"],
     "key_positives": ["2-4 strengths or positives from the filing"],
     "risks": ["2-4 potential risks related to the announcement"],
     "analyst_watchlist": ["3-5 key developments analysts will monitor"],
-    "opportunities": ["2-4 growth or strategic opportunities mentioned or implied"],
-    "important_extracted_data": {{"metric1": "value1", "metric2": "value2"}},
-    "future_outlook": "1-2 sentences on outlook and uncertainties"
+    "beginner_walkthrough": "Simple language explanation for beginner investors (2-3 sentences)"
 }}
 
 Financial report excerpt:
@@ -219,66 +217,58 @@ def sanitize_for_api_response(text: str, max_len: int = 600) -> str:
 
 
 def _parse_json_response(response_text: str) -> dict[str, Any]:
+    """Parse JSON response using json.loads with safe fallback."""
     try:
         return json.loads(response_text)
     except json.JSONDecodeError:
-        json_match = re.search(r"```(?:json)?\n?(.*?)\n?```", response_text, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group(1))
-        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
         raise ValueError("Could not parse AI response as JSON") from None
 
 
 def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
-    required = [
-        "summary",
-        "market_signal",
-        "company_summary",
-        "strategic_intent",
-        "key_insights",
-        "key_positives",
-        "risks",
-        "analyst_watchlist",
-        "opportunities",
-        "important_extracted_data",
-        "future_outlook",
-    ]
-    for key in required:
-        if key not in analysis:
-            raise ValueError(f"AI response missing required field: {key}")
-
-    # Normalize list fields
-    for list_key in ("strategic_intent", "key_insights", "key_positives", "risks", "analyst_watchlist", "opportunities"):
-        if not isinstance(analysis[list_key], list):
-            analysis[list_key] = [str(analysis[list_key])]
-        analysis[list_key] = [str(x) for x in analysis[list_key]][:10]
-
-    # Normalize market_signal nested object
-    if not isinstance(analysis["market_signal"], dict):
-        analysis["market_signal"] = {
+    """Validate and normalize analysis with safe fallbacks for missing fields."""
+    # Use safe fallbacks instead of raising errors
+    result: dict[str, Any] = {
+        "executive_summary": analysis.get("executive_summary", ""),
+        "ai_market_signal": analysis.get("ai_market_signal", {
             "rating": "Neutral",
             "confidence": "50",
-            "reason": str(analysis["market_signal"])
+            "reason": "Analysis completed"
+        }),
+        "company_snapshot": analysis.get("company_snapshot", ""),
+        "strategic_intent": analysis.get("strategic_intent", []),
+        "key_insights": analysis.get("key_insights", []),
+        "key_positives": analysis.get("key_positives", []),
+        "risks": analysis.get("risks", []),
+        "analyst_watchlist": analysis.get("analyst_watchlist", []),
+        "beginner_walkthrough": analysis.get("beginner_walkthrough", ""),
+    }
+
+    # Normalize list fields
+    for list_key in ("strategic_intent", "key_insights", "key_positives", "risks", "analyst_watchlist"):
+        if not isinstance(result[list_key], list):
+            result[list_key] = [str(result[list_key])]
+        result[list_key] = [str(x) for x in result[list_key]][:10]
+
+    # Normalize ai_market_signal nested object
+    if not isinstance(result["ai_market_signal"], dict):
+        result["ai_market_signal"] = {
+            "rating": "Neutral",
+            "confidence": "50",
+            "reason": str(result["ai_market_signal"])
         }
     else:
-        if "rating" not in analysis["market_signal"]:
-            analysis["market_signal"]["rating"] = "Neutral"
-        if "confidence" not in analysis["market_signal"]:
-            analysis["market_signal"]["confidence"] = "50"
-        if "reason" not in analysis["market_signal"]:
-            analysis["market_signal"]["reason"] = "Analysis completed"
-
-    # Normalize important_extracted_data
-    if not isinstance(analysis["important_extracted_data"], dict):
-        analysis["important_extracted_data"] = {}
+        if "rating" not in result["ai_market_signal"]:
+            result["ai_market_signal"]["rating"] = "Neutral"
+        if "confidence" not in result["ai_market_signal"]:
+            result["ai_market_signal"]["confidence"] = "50"
+        if "reason" not in result["ai_market_signal"]:
+            result["ai_market_signal"]["reason"] = "Analysis completed"
 
     # Limit text field lengths
-    for text_key in ("summary", "company_summary", "future_outlook"):
-        analysis[text_key] = str(analysis[text_key])[:4000]
+    for text_key in ("executive_summary", "company_snapshot", "beginner_walkthrough"):
+        result[text_key] = str(result[text_key])[:4000]
 
-    return analysis
+    return result
 
 
 def classify_financial_analysis_error(exc: BaseException) -> str:
@@ -359,13 +349,13 @@ def create_fallback_analysis(
         strategic_intent.append("Possible strategic move requires full analysis.")
 
     return {
-        "summary": summary,
-        "market_signal": {
+        "executive_summary": summary,
+        "ai_market_signal": {
             "rating": "Neutral",
             "confidence": "50",
             "reason": "Market signal requires full AI analysis"
         },
-        "company_summary": "Company context requires full AI analysis or manual reading of the document.",
+        "company_snapshot": "Company context requires full AI analysis or manual reading of the document.",
         "strategic_intent": strategic_intent[:4],
         "key_insights": key_insights[:5],
         "key_positives": ["Review the full document for complete positive insights."],
@@ -375,10 +365,5 @@ def create_fallback_analysis(
             "Monitor debt levels and covenants.",
             "Track management commentary on strategy."
         ],
-        "opportunities": ["Scan for growth opportunities in the complete document."],
-        "important_extracted_data": {
-            "analysis_mode": "Fallback",
-            "recommendation": "Enable AI for complete analysis"
-        },
-        "future_outlook": "Outlook requires full AI analysis or manual reading of management commentary."
+        "beginner_walkthrough": "Financial reports contain important company information. This automated view provides basic insights; enable AI for complete analysis."
     }

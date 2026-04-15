@@ -65,17 +65,15 @@ app.add_middleware(
 
 
 class AnalysisResponse(BaseModel):
-    summary: str
-    key_insights: list[str]
-    key_positives: list[str]
-    risks: list[str]
-    opportunities: list[str]
-    important_extracted_data: dict = {}
-    company_summary: str
-    future_outlook: str
-    market_signal: dict | None = None
+    executive_summary: str
+    ai_market_signal: dict
+    company_snapshot: str
     strategic_intent: list[str] = []
+    key_insights: list[str] = []
+    key_positives: list[str] = []
+    risks: list[str] = []
     analyst_watchlist: list[str] = []
+    beginner_walkthrough: str = ""
     analysis_mode: Literal["ai", "fallback"] = "ai"
     fallback_reason: str | None = None
     setup_hint: str | None = None
