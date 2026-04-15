@@ -161,8 +161,93 @@ def sanitize_for_api_response(text: str, max_len: int = 600) -> str:
     return _sanitize_for_client(text, max_len)
 
 
+def _parse_formatted_text_to_json(text: str) -> dict[str, Any]:
+    """Parse formatted text with section headers into structured JSON."""
+    result: dict[str, Any] = {
+        "executive_summary": "",
+        "ai_market_signal": {"signal": "Neutral", "confidence": 50},
+        "company_snapshot": "",
+        "beginner_walkthrough": "",
+        "key_insights": [],
+        "strategic_intent": [],
+        "key_positives": [],
+        "risks": [],
+        "analyst_watchlist": []
+    }
+
+    lines = text.strip().split('\n')
+    current_section = None
+    current_items = []
+
+    section_mapping = {
+        "executive summary": "executive_summary",
+        "ai market signal": "ai_market_signal",
+        "company snapshot": "company_snapshot",
+        "beginner walkthrough": "beginner_walkthrough",
+        "key insights": "key_insights",
+        "possible strategic intent": "strategic_intent",
+        "positives": "key_positives",
+        "risks": "risks",
+        "what analysts will watch next": "analyst_watchlist"
+    }
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Check if this is a section header
+        line_lower = line.lower()
+        matched_section = None
+        for header, field in section_mapping.items():
+            if line_lower.startswith(header):
+                matched_section = field
+                # Save previous section's items
+                if current_section in result and isinstance(result[current_section], list):
+                    result[current_section] = current_items
+                elif current_section and current_section in result:
+                    result[current_section] = ' '.join(current_items)
+                current_section = field
+                current_items = []
+                break
+
+        if matched_section is None:
+            # This is content
+            if current_section:
+                # Check if it's a bullet point
+                if line.startswith('•') or line.startswith('-') or line.startswith('*'):
+                    item = line.lstrip('•-*').strip()
+                    current_items.append(item)
+                else:
+                    # It's regular text content
+                    if isinstance(result.get(current_section), list):
+                        # If current section expects array, add as item
+                        if line:
+                            current_items.append(line)
+                    else:
+                        # If current section expects string, append
+                        current_items.append(line)
+            else:
+                # No current section, add to executive summary by default
+                if line and not any(c in line for c in '•-*'):
+                    result["executive_summary"] += line + " "
+
+    # Save last section
+    if current_section in result and isinstance(result[current_section], list):
+        result[current_section] = current_items
+    elif current_section and current_section in result:
+        result[current_section] = ' '.join(current_items)
+
+    # Clean up text fields
+    for field in ["executive_summary", "company_snapshot", "beginner_walkthrough"]:
+        if field in result and isinstance(result[field], str):
+            result[field] = result[field].strip()
+
+    return result
+
+
 def _parse_json_response(response_text: str) -> dict[str, Any]:
-    """Parse JSON response using json.loads with safe fallback."""
+    """Parse JSON response using json.loads with safe fallback to text parsing."""
     # Strip markdown code fences if present
     text = response_text.strip()
     if text.startswith("```json"):
@@ -173,12 +258,14 @@ def _parse_json_response(response_text: str) -> dict[str, Any]:
         text = text[:-3]
     text = text.strip()
 
+    # Try JSON parsing first
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
-        print(f"[pdf] JSON parse error: {e}")
-        print(f"[pdf] Attempted to parse: {text[:500]}")
-        raise ValueError("Could not parse AI response as JSON") from None
+    except json.JSONDecodeError:
+        print(f"[pdf] JSON parse failed, attempting text parsing...")
+        print(f"[pdf] Raw response (first 300 chars): {response_text[:300]}")
+        # Fallback to formatted text parsing
+        return _parse_formatted_text_to_json(response_text)
 
 
 def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
