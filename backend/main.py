@@ -42,22 +42,22 @@ def transform_analysis_to_old_schema(new_analysis: dict[str, Any]) -> dict[str, 
                 "why_it_matters": ""
             })
     
-    # Convert corporate_intent list to string
-    corporate_intent = new_analysis.get("corporate_intent", [])
-    if isinstance(corporate_intent, list):
-        future_outlook = ", ".join(str(x) for x in corporate_intent)
+    # Convert suggested_questions list to string for future_outlook
+    suggested_questions = new_analysis.get("suggested_questions", [])
+    if isinstance(suggested_questions, list):
+        future_outlook = "; ".join(str(x) for x in suggested_questions)
     else:
-        future_outlook = str(corporate_intent)
+        future_outlook = str(suggested_questions)
     
     return {
-        "summary": new_analysis.get("company_message", ""),
-        "key_insights": new_analysis.get("verified_facts", []),
-        "key_positives": new_analysis.get("possible_scenarios", []),
-        "risks": new_analysis.get("risk_signals", []),
+        "summary": new_analysis.get("executive_summary", ""),
+        "key_insights": new_analysis.get("key_insights", []),
+        "key_positives": new_analysis.get("strategic_intent", []),
+        "risks": new_analysis.get("risks", []),
         "opportunities": new_analysis.get("analyst_watchlist", []),
         "important_extracted_data": important_extracted_data,
-        "beginner_explanation": new_analysis.get("beginner_explanation", ""),
-        "company_summary": new_analysis.get("industry_context", ""),
+        "beginner_explanation": new_analysis.get("beginner_walkthrough", ""),
+        "company_summary": new_analysis.get("company_snapshot", ""),
         "future_outlook": future_outlook,
     }
 from pdf_parser import clean_and_truncate_text, extract_text_from_pdf
