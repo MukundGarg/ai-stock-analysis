@@ -121,6 +121,14 @@ Regulatory references
 
 Use bullet points.
 
+KEY POSITIVES
+List 2–4 positive implications of the announcement.
+
+Examples:
+- potential expansion
+- improved liquidity
+- strategic financing
+
 RISKS
 List 2–4 potential risks related to the announcement.
 
