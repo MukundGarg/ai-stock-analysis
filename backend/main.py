@@ -64,22 +64,18 @@ app.add_middleware(
 )
 
 
-class ExtractedDatum(BaseModel):
-    label: str
-    value_or_figure: str
-    why_it_matters: str
-
-
 class AnalysisResponse(BaseModel):
-    summary: str
-    key_insights: list[str]
-    key_positives: list[str]
-    risks: list[str]
-    opportunities: list[str]
-    important_extracted_data: list[ExtractedDatum]
-    beginner_explanation: str
-    company_summary: str
-    future_outlook: str
+    document_type: str = ""
+    verified_facts: list[str] = []
+    company_message: str = ""
+    industry_context: str = ""
+    possible_scenarios: list[str] = []
+    market_signal: dict = {}
+    risk_signals: list[str] = []
+    analyst_watchlist: list[str] = []
+    beginner_explanation: str = ""
+    corporate_intent: list[str] = []
+    key_facts_table: dict = {}
     analysis_mode: Literal["ai", "fallback"] = "ai"
     fallback_reason: str | None = None
     setup_hint: str | None = None
