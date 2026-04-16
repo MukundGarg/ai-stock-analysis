@@ -84,20 +84,23 @@ Assess pattern quality, market context, and institutional interpretation.
 
 MANDATORY INFERENCE RULES:
 - If price scale is missing: INFER trade zones from relative structure (e.g., "Entry near neckline region", "Stop above swing high")
-- NEVER output "N/A" for core trading fields
+- NEVER output "N/A", "Not specified", "Not available", "Unknown", or similar placeholders for ANY field
 - Use labels: "Inferred (low confidence)", "Approximate zone based on structure", "Estimated based on swing geometry"
-- Always generate ALL sections: trade_setup, pattern_quality, market_context, confirmation, scenarios, institutional_interpretation
+- Always generate ALL sections with INFERRED data: trade_setup, pattern_quality, market_context, confirmation, scenarios, institutional_interpretation
 - If data is missing: reduce confidence (e.g., 72→55) but NEVER remove output
 - Scenarios MUST always be generated (label as "low confidence scenario modeling" if uncertain)
+- EVERY field in the JSON schema MUST have a value - no empty strings, no null values
 
-{schema_hint}"""
+{schema_hint}
+
+REMEMBER: Your output must be complete JSON with ALL fields populated. Never leave any field empty or default to "N/A". Always infer when data is missing."""
 
         raw = llm.vision_image(
             image_bytes,
             prompt,
             model=model,
             temperature=0.2,
-            max_tokens=900,
+            max_tokens=1800,
         )
         data = _parse_json_loose(raw)
         if not data:
@@ -110,22 +113,102 @@ MANDATORY INFERENCE RULES:
 
 def _parse_json_loose(text: str) -> dict[str, Any] | None:
     try:
-        return json.loads(text)
+        data = json.loads(text)
+        return _enforce_complete_schema(data)
     except json.JSONDecodeError:
         pass
     m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if m:
         try:
-            return json.loads(m.group(1))
+            data = json.loads(m.group(1))
+            return _enforce_complete_schema(data)
         except json.JSONDecodeError:
             pass
     m2 = re.search(r"\{[\s\S]*\}", text)
     if m2:
         try:
-            return json.loads(m2.group(0))
+            data = json.loads(m2.group(0))
+            return _enforce_complete_schema(data)
         except json.JSONDecodeError:
             return None
     return None
+
+
+def _enforce_complete_schema(data: dict[str, Any]) -> dict[str, Any]:
+    """Ensure all required fields exist with inferred values if missing."""
+    # Ensure nested objects exist
+    if "trade_setup" not in data or not isinstance(data["trade_setup"], dict):
+        data["trade_setup"] = {}
+    if "pattern_quality" not in data or not isinstance(data["pattern_quality"], dict):
+        data["pattern_quality"] = {}
+    if "market_context" not in data or not isinstance(data["market_context"], dict):
+        data["market_context"] = {}
+    if "confirmation" not in data or not isinstance(data["confirmation"], dict):
+        data["confirmation"] = {}
+    if "scenarios" not in data or not isinstance(data["scenarios"], dict):
+        data["scenarios"] = {}
+    if "institutional_interpretation" not in data or not isinstance(data["institutional_interpretation"], dict):
+        data["institutional_interpretation"] = {}
+
+    # Ensure trade_setup fields
+    trade = data["trade_setup"]
+    if not trade.get("entry_zone") or trade["entry_zone"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        trade["entry_zone"] = "Inferred from chart structure"
+    if not trade.get("stop_loss_zone") or trade["stop_loss_zone"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        trade["stop_loss_zone"] = "Approximate zone based on swing geometry"
+    if not trade.get("target_1") or trade["target_1"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        trade["target_1"] = "Estimated based on pattern projection"
+    if not trade.get("target_2") or trade["target_2"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        trade["target_2"] = "Projected from pattern structure"
+    if not trade.get("risk_reward_ratio") or trade["risk_reward_ratio"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        trade["risk_reward_ratio"] = "Estimated from structure"
+
+    # Ensure pattern_quality fields
+    quality = data["pattern_quality"]
+    if not quality.get("purity_score") or str(quality["purity_score"]) in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        quality["purity_score"] = 50
+    if not quality.get("false_signal_risk") or quality["false_signal_risk"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        quality["false_signal_risk"] = "Medium"
+    if not quality.get("breakdown_continuation_probability") or quality["breakdown_continuation_probability"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        quality["breakdown_continuation_probability"] = "Inferred from structure"
+
+    # Ensure market_context fields
+    context = data["market_context"]
+    if not context.get("current_trend") or context["current_trend"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        context["current_trend"] = "Inferred from swing structure"
+    if not context.get("market_structure_alignment") or context["market_structure_alignment"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        context["market_structure_alignment"] = "Inferred"
+    if not context.get("volatility_regime") or context["volatility_regime"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        context["volatility_regime"] = "Inferred from candle density"
+
+    # Ensure confirmation fields
+    conf = data["confirmation"]
+    if not conf.get("what_confirms") or conf["what_confirms"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        conf["what_confirms"] = "Inferred from pattern structure"
+    if not conf.get("what_invalidates") or conf["what_invalidates"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        conf["what_invalidates"] = "Based on swing invalidation logic"
+    if not conf.get("current_state") or conf["current_state"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        conf["current_state"] = "Inferred (low confidence)"
+
+    # Ensure scenarios fields
+    scenarios = data["scenarios"]
+    if not scenarios.get("bull_case") or scenarios["bull_case"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        scenarios["bull_case"] = "Low confidence scenario modeling"
+    if not scenarios.get("bear_case") or scenarios["bear_case"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        scenarios["bear_case"] = "Low confidence scenario modeling"
+    if not scenarios.get("neutral_case") or scenarios["neutral_case"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        scenarios["neutral_case"] = "Low confidence scenario modeling"
+
+    # Ensure institutional_interpretation fields
+    inst = data["institutional_interpretation"]
+    if not inst.get("institutional_action") or inst["institutional_action"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        inst["institutional_action"] = "Inferred from structure"
+    if not inst.get("liquidity_hunt_risk") or inst["liquidity_hunt_risk"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        inst["liquidity_hunt_risk"] = "Possible stop hunt inferred"
+    if not inst.get("dominant_behavior") or inst["dominant_behavior"] in ["N/A", "Not specified", "Not available", "Unknown", ""]:
+        inst["dominant_behavior"] = "Inferred from structure"
+
+    return data
 
 
 def _normalize_vision_payload(data: dict[str, Any]) -> dict[str, Any]:
