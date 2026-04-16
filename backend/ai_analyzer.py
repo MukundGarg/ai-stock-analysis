@@ -78,33 +78,25 @@ def analyze_financial_report(text: str) -> dict[str, Any]:
     Tries primary model then fallback when the failure looks retryable.
     """
 
-    analysis_prompt = f"""You are an AI equity research analyst who explains corporate filings to investors.
-
-Analyze the provided document and generate a concise financial analysis.
+    analysis_prompt = f"""You are a market intelligence engine for institutional investors. Analyze the corporate filing as a hedge fund analyst would.
 
 IMPORTANT RULES:
 - Return ONLY valid JSON (no markdown, no headings, no text outside JSON)
 - Do not include section titles or formatting
 - All list fields must be arrays
 - If no items exist for a list field, return empty array []
-- Keep explanations brief (1-2 sentences)
-- Facts must come only from the document
-- Any speculation must be labeled "Possible"
+- Be concise but high-signal
+- Avoid generic finance language
+- Prioritize market impact over explanation
+- Think like a hedge fund news analyst, not a blogger
 
 Return JSON with exactly this structure:
 {{
-    "executive_summary": "1-2 sentence explanation of the filing",
-    "ai_market_signal": {{
-        "signal": "Bullish, Neutral, or Bearish",
-        "confidence": number (0-100)
-    }},
-    "company_snapshot": "Brief explanation of what the company does and why this filing matters",
-    "beginner_walkthrough": "Simple language explanation for beginner investors (2-3 sentences)",
-    "key_insights": ["Important facts: company name, dates, stock symbols, regulatory references"],
-    "strategic_intent": ["2-4 possible motives, each starting with 'Possible'"],
-    "key_positives": ["2-4 strengths or positives from the filing"],
-    "risks": ["2-4 potential risks related to the announcement"],
-    "analyst_watchlist": ["3-5 key developments analysts will monitor"]
+    "market_reaction": "Direct impact on sentiment and price action (1-3 lines)",
+    "catalyst_type": "What kind of event this is: fundraising, debt, regulation, earnings, expansion, risk event, or other",
+    "institutional_interpretation": "How smart money / funds are likely to interpret this (2-3 lines)",
+    "hidden_signals": ["Dilution risk, leverage changes, liquidity shifts, governance implications, or other hidden signals"],
+    "forward_watch": ["What traders/investors will monitor next (3-5 items)"]
 }}
 
 Financial report excerpt:
@@ -164,15 +156,11 @@ def sanitize_for_api_response(text: str, max_len: int = 600) -> str:
 def _parse_formatted_text_to_json(text: str) -> dict[str, Any]:
     """Parse formatted text with section headers into structured JSON."""
     result: dict[str, Any] = {
-        "executive_summary": "",
-        "ai_market_signal": {"signal": "Neutral", "confidence": 50},
-        "company_snapshot": "",
-        "beginner_walkthrough": "",
-        "key_insights": [],
-        "strategic_intent": [],
-        "key_positives": [],
-        "risks": [],
-        "analyst_watchlist": []
+        "market_reaction": "",
+        "catalyst_type": "unknown",
+        "institutional_interpretation": "",
+        "hidden_signals": [],
+        "forward_watch": []
     }
 
     lines = text.strip().split('\n')
@@ -180,15 +168,11 @@ def _parse_formatted_text_to_json(text: str) -> dict[str, Any]:
     current_items = []
 
     section_mapping = {
-        "executive summary": "executive_summary",
-        "ai market signal": "ai_market_signal",
-        "company snapshot": "company_snapshot",
-        "beginner walkthrough": "beginner_walkthrough",
-        "key insights": "key_insights",
-        "possible strategic intent": "strategic_intent",
-        "positives": "key_positives",
-        "risks": "risks",
-        "what analysts will watch next": "analyst_watchlist"
+        "market reaction": "market_reaction",
+        "catalyst type": "catalyst_type",
+        "institutional interpretation": "institutional_interpretation",
+        "hidden signals": "hidden_signals",
+        "forward watch": "forward_watch"
     }
 
     for line in lines:
@@ -228,9 +212,9 @@ def _parse_formatted_text_to_json(text: str) -> dict[str, Any]:
                         # If current section expects string, append
                         current_items.append(line)
             else:
-                # No current section, add to executive summary by default
+                # No current section, add to market reaction by default
                 if line and not any(c in line for c in '•-*'):
-                    result["executive_summary"] += line + " "
+                    result["market_reaction"] += line + " "
 
     # Save last section
     if current_section in result and isinstance(result[current_section], list):
@@ -239,7 +223,7 @@ def _parse_formatted_text_to_json(text: str) -> dict[str, Any]:
         result[current_section] = ' '.join(current_items)
 
     # Clean up text fields
-    for field in ["executive_summary", "company_snapshot", "beginner_walkthrough"]:
+    for field in ["market_reaction", "catalyst_type", "institutional_interpretation"]:
         if field in result and isinstance(result[field], str):
             result[field] = result[field].strip()
 
@@ -272,49 +256,21 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
     """Validate and normalize analysis with safe fallbacks for missing fields."""
     # Use safe fallbacks instead of raising errors
     result: dict[str, Any] = {
-        "executive_summary": analysis.get("executive_summary", ""),
-        "ai_market_signal": analysis.get("ai_market_signal", {
-            "signal": "Neutral",
-            "confidence": 50
-        }),
-        "company_snapshot": analysis.get("company_snapshot", ""),
-        "beginner_walkthrough": analysis.get("beginner_walkthrough", ""),
-        "key_insights": analysis.get("key_insights", []),
-        "strategic_intent": analysis.get("strategic_intent", []),
-        "key_positives": analysis.get("key_positives", []),
-        "risks": analysis.get("risks", []),
-        "analyst_watchlist": analysis.get("analyst_watchlist", []),
+        "market_reaction": analysis.get("market_reaction", ""),
+        "catalyst_type": analysis.get("catalyst_type", "unknown"),
+        "institutional_interpretation": analysis.get("institutional_interpretation", ""),
+        "hidden_signals": analysis.get("hidden_signals", []),
+        "forward_watch": analysis.get("forward_watch", []),
     }
 
     # Normalize list fields - ensure they are always arrays
-    for list_key in ("strategic_intent", "key_insights", "key_positives", "risks", "analyst_watchlist"):
+    for list_key in ("hidden_signals", "forward_watch"):
         if not isinstance(result[list_key], list):
             result[list_key] = [str(result[list_key])]
         result[list_key] = [str(x) for x in result[list_key]][:10]
 
-    # Normalize ai_market_signal nested object
-    if not isinstance(result["ai_market_signal"], dict):
-        result["ai_market_signal"] = {
-            "signal": "Neutral",
-            "confidence": 50
-        }
-    else:
-        # Support both old 'rating' and new 'signal' field names
-        if "signal" not in result["ai_market_signal"]:
-            result["ai_market_signal"]["signal"] = result["ai_market_signal"].get("rating", "Neutral")
-        if "confidence" not in result["ai_market_signal"]:
-            result["ai_market_signal"]["confidence"] = 50
-        # Convert confidence to number
-        try:
-            result["ai_market_signal"]["confidence"] = int(result["ai_market_signal"]["confidence"])
-        except (ValueError, TypeError):
-            result["ai_market_signal"]["confidence"] = 50
-        # Remove old fields if present
-        result["ai_market_signal"].pop("rating", None)
-        result["ai_market_signal"].pop("reason", None)
-
     # Limit text field lengths
-    for text_key in ("executive_summary", "company_snapshot", "beginner_walkthrough"):
+    for text_key in ("market_reaction", "catalyst_type", "institutional_interpretation"):
         result[text_key] = str(result[text_key])[:4000]
 
     return result
@@ -373,45 +329,31 @@ def create_fallback_analysis(
     summary = summaries.get(key, summaries["generic"])
 
     text_lower = text.lower()
-    key_insights: list[str] = []
-    risks: list[str] = []
-    strategic_intent: list[str] = []
+    hidden_signals: list[str] = []
+    forward_watch: list[str] = []
 
     if "revenue" in text_lower:
-        key_insights.append("Revenue-related information appears in the document.")
-    if "profit" in text_lower or "pat" in text_lower:
-        key_insights.append("Profitability metrics appear in the excerpt.")
+        hidden_signals.append("Revenue-related information appears in the document.")
     if "debt" in text_lower or "borrowing" in text_lower:
-        risks.append("Possible debt or leverage concerns.")
+        hidden_signals.append("Possible debt or leverage concerns.")
     if "litigation" in text_lower or "regulatory" in text_lower:
-        risks.append("Possible legal or regulatory risks.")
+        hidden_signals.append("Possible legal or regulatory risks.")
     if "expansion" in text_lower or "capacity" in text_lower:
-        strategic_intent.append("Possible expansion or capacity increase.")
-    if "digital" in text_lower or "new product" in text_lower:
-        strategic_intent.append("Possible new initiatives or product development.")
+        hidden_signals.append("Possible expansion or capacity increase.")
 
-    while len(key_insights) < 3:
-        key_insights.append("Review the full document for complete factual information.")
-    while len(risks) < 3:
-        risks.append("Review risk factors in the complete document.")
-    while len(strategic_intent) < 3:
-        strategic_intent.append("Possible strategic move requires full analysis.")
+    forward_watch.extend([
+        "Review revenue, margins, and cash flow trends.",
+        "Monitor debt levels and covenants.",
+        "Track management commentary on strategy."
+    ])
+
+    while len(hidden_signals) < 3:
+        hidden_signals.append("Review the full document for complete hidden signals.")
 
     return {
-        "executive_summary": summary,
-        "ai_market_signal": {
-            "signal": "Neutral",
-            "confidence": 50
-        },
-        "company_snapshot": "Company context requires full AI analysis or manual reading of the document.",
-        "beginner_walkthrough": "Financial reports contain important company information. This automated view provides basic insights; enable AI for complete analysis.",
-        "strategic_intent": strategic_intent[:4],
-        "key_insights": key_insights[:5],
-        "key_positives": ["Review the full document for complete positive insights."],
-        "risks": risks[:4] if risks else ["No major risks detected in fallback mode."],
-        "analyst_watchlist": [
-            "Review revenue, margins, and cash flow trends.",
-            "Monitor debt levels and covenants.",
-            "Track management commentary on strategy."
-        ]
+        "market_reaction": summary,
+        "catalyst_type": "unknown",
+        "institutional_interpretation": "Institutional interpretation requires full AI analysis or manual reading of the document.",
+        "hidden_signals": hidden_signals[:5],
+        "forward_watch": forward_watch[:5]
     }
