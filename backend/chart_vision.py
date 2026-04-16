@@ -39,12 +39,48 @@ def analyze_chart_vision(image_bytes: bytes) -> dict[str, Any] | None:
   "candlestick_notes": "1-2 sentences on notable candlestick context if visible, else say unclear",
   "reasoning": "3-5 sentences: what you see in the chart and how you inferred the pattern (be honest if image is unclear)",
   "beginner_explanation": "2-4 sentences explaining the pattern in plain English for a beginner",
-  "caveats": "1-2 sentences: image quality, timeframe unknown, not financial advice"
+  "caveats": "1-2 sentences: image quality, timeframe unknown, not financial advice",
+  "trade_setup": {
+    "entry_zone": "Price area for entry (e.g., 'Near 4500-4550')",
+    "stop_loss_zone": "Stop loss price area (e.g., 'Below 4450')",
+    "target_1": "First target price",
+    "target_2": "Second target price (if applicable)",
+    "risk_reward_ratio": "string like '1:2.5' or '1:1.8'"
+  },
+  "pattern_quality": {
+    "purity_score": integer 0-100,
+    "false_signal_risk": "Low | Medium | High",
+    "breakdown_continuation_probability": "Breakdown: X%, Continuation: Y%"
+  },
+  "market_context": {
+    "current_trend": "Uptrend | Downtrend | Sideways",
+    "market_structure_alignment": "Aligned | Neutral | Misaligned",
+    "volatility_regime": "Low | Medium | High"
+  },
+  "confirmation": {
+    "what_confirms": "What confirms the pattern (1-2 sentences)",
+    "what_invalidates": "What invalidates the pattern (1-2 sentences)",
+    "current_state": "Confirmed | Unconfirmed | Pending"
+  },
+  "scenarios": {
+    "bull_case": "If pattern fails or reverses (1-2 sentences)",
+    "bear_case": "If pattern confirms (1-2 sentences)",
+    "neutral_case": "If consolidation or fakeout (1-2 sentences)"
+  },
+  "institutional_interpretation": {
+    "institutional_action": "Would institutional traders act on this? (Yes/No/Maybe with brief reason)",
+    "liquidity_hunt_risk": "Is this likely a liquidity hunt or stop trap? (Yes/No with brief reason)",
+    "dominant_behavior": "Retail | Institutional | Mixed"
+  }
 }"""
 
-        prompt = f"""You are an experienced technical analyst helping Indian retail learners.
-Analyze this price chart screenshot. Infer trend, support/resistance, trendlines, classic patterns (H&S, double top/bottom, triangles, wedges), and breakouts when plausible.
+        prompt = f"""You are a professional technical analyst providing trade decision intelligence for hedge funds and active traders.
+Analyze this price chart screenshot with a trading-grade focus. Infer trend, support/resistance, trendlines, classic patterns (H&S, double top/bottom, triangles, wedges), and breakouts when plausible.
 If the image is not a price chart or is too cluttered, set pattern to "No clear pattern", confidence_0_100 under 40, and explain why in reasoning.
+
+CRITICAL: Focus on trade decision intelligence, not pattern explanation.
+Provide specific entry zones, stop loss areas, targets, and risk-reward ratios.
+Assess pattern quality, market context, and institutional interpretation.
 
 {schema_hint}"""
 
@@ -92,6 +128,69 @@ def _normalize_vision_payload(data: dict[str, Any]) -> dict[str, Any]:
         conf = 50
     conf = max(0, min(100, conf))
 
+    # Normalize nested objects with safe defaults
+    trade_setup = data.get("trade_setup", {})
+    if not isinstance(trade_setup, dict):
+        trade_setup = {}
+    trade_setup = {
+        "entry_zone": str(trade_setup.get("entry_zone", "Not specified"))[:200],
+        "stop_loss_zone": str(trade_setup.get("stop_loss_zone", "Not specified"))[:200],
+        "target_1": str(trade_setup.get("target_1", "Not specified"))[:200],
+        "target_2": str(trade_setup.get("target_2", "Not specified"))[:200],
+        "risk_reward_ratio": str(trade_setup.get("risk_reward_ratio", "Not specified"))[:50],
+    }
+
+    pattern_quality = data.get("pattern_quality", {})
+    if not isinstance(pattern_quality, dict):
+        pattern_quality = {}
+    purity_score = pattern_quality.get("purity_score", 50)
+    try:
+        purity_score = int(float(purity_score))
+    except (TypeError, ValueError):
+        purity_score = 50
+    purity_score = max(0, min(100, purity_score))
+    pattern_quality = {
+        "purity_score": purity_score,
+        "false_signal_risk": str(pattern_quality.get("false_signal_risk", "Medium"))[:20],
+        "breakdown_continuation_probability": str(pattern_quality.get("breakdown_continuation_probability", "Not specified"))[:200],
+    }
+
+    market_context = data.get("market_context", {})
+    if not isinstance(market_context, dict):
+        market_context = {}
+    market_context = {
+        "current_trend": str(market_context.get("current_trend", "Sideways"))[:20],
+        "market_structure_alignment": str(market_context.get("market_structure_alignment", "Neutral"))[:20],
+        "volatility_regime": str(market_context.get("volatility_regime", "Medium"))[:20],
+    }
+
+    confirmation = data.get("confirmation", {})
+    if not isinstance(confirmation, dict):
+        confirmation = {}
+    confirmation = {
+        "what_confirms": str(confirmation.get("what_confirms", "Not specified"))[:400],
+        "what_invalidates": str(confirmation.get("what_invalidates", "Not specified"))[:400],
+        "current_state": str(confirmation.get("current_state", "Pending"))[:20],
+    }
+
+    scenarios = data.get("scenarios", {})
+    if not isinstance(scenarios, dict):
+        scenarios = {}
+    scenarios = {
+        "bull_case": str(scenarios.get("bull_case", "Not specified"))[:400],
+        "bear_case": str(scenarios.get("bear_case", "Not specified"))[:400],
+        "neutral_case": str(scenarios.get("neutral_case", "Not specified"))[:400],
+    }
+
+    institutional_interpretation = data.get("institutional_interpretation", {})
+    if not isinstance(institutional_interpretation, dict):
+        institutional_interpretation = {}
+    institutional_interpretation = {
+        "institutional_action": str(institutional_interpretation.get("institutional_action", "Not specified"))[:400],
+        "liquidity_hunt_risk": str(institutional_interpretation.get("liquidity_hunt_risk", "Not specified"))[:400],
+        "dominant_behavior": str(institutional_interpretation.get("dominant_behavior", "Mixed"))[:20],
+    }
+
     return {
         "pattern": str(data.get("pattern", "No clear pattern"))[:200],
         "signal": str(data.get("signal", "Neutral")),
@@ -103,6 +202,12 @@ def _normalize_vision_payload(data: dict[str, Any]) -> dict[str, Any]:
         "reasoning": str(data.get("reasoning", ""))[:2000],
         "beginner_explanation": str(data.get("beginner_explanation", ""))[:1200],
         "caveats": str(data.get("caveats", ""))[:600],
+        "trade_setup": trade_setup,
+        "pattern_quality": pattern_quality,
+        "market_context": market_context,
+        "confirmation": confirmation,
+        "scenarios": scenarios,
+        "institutional_interpretation": institutional_interpretation,
         "source": "vision",
     }
 

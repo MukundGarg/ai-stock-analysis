@@ -17,6 +17,38 @@ interface ChartAnalysisResult {
   breakout_notes: string;
   candlestick_notes: string;
   beginner_explanation: string;
+  trade_setup: {
+    entry_zone: string;
+    stop_loss_zone: string;
+    target_1: string;
+    target_2: string;
+    risk_reward_ratio: string;
+  };
+  pattern_quality: {
+    purity_score: number;
+    false_signal_risk: string;
+    breakdown_continuation_probability: string;
+  };
+  market_context: {
+    current_trend: string;
+    market_structure_alignment: string;
+    volatility_regime: string;
+  };
+  confirmation: {
+    what_confirms: string;
+    what_invalidates: string;
+    current_state: string;
+  };
+  scenarios: {
+    bull_case: string;
+    bear_case: string;
+    neutral_case: string;
+  };
+  institutional_interpretation: {
+    institutional_action: string;
+    liquidity_hunt_risk: string;
+    dominant_behavior: string;
+  };
   analysis_method: string;
   cv_fallback_summary?: string | null;
   vision_secondary_note?: string | null;
@@ -260,39 +292,161 @@ export default function ChartToolPage() {
                       </div>
                     </div>
 
-                    <div className="mt-6 space-y-4 text-gray-700 dark:text-gray-300">
-                      <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Beginner view</p>
-                        <p className="mt-1 leading-relaxed whitespace-pre-wrap">{analysis.description}</p>
+                    {/* Market Context */}
+                    <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Market Context</h4>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Trend</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.current_trend || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Structure</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.market_structure_alignment || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Volatility</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.volatility_regime || 'N/A'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Reasoning</p>
-                        <p className="mt-1 leading-relaxed">{analysis.reasoning}</p>
+                    </div>
+
+                    {/* Pattern Quality */}
+                    <div className="mt-4 rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-900/20">
+                      <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100">Pattern Quality</h4>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Purity Score</p>
+                          <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.purity_score || 'N/A'}/100</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">False Signal Risk</p>
+                          <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.false_signal_risk || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Breakdown/Continuation</p>
+                          <p className="text-xs font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.breakdown_continuation_probability || 'N/A'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Support / resistance</p>
-                        <p className="mt-1">{analysis.support_resistance}</p>
+                    </div>
+
+                    {/* Trade Setup */}
+                    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+                      <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Trade Setup</h4>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex justify-between">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Entry Zone</p>
+                          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">{analysis.trade_setup?.entry_zone || 'N/A'}</p>
+                        </div>
+                        <div className="flex justify-between">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Stop Loss Zone</p>
+                          <p className="text-sm font-medium text-red-900 dark:text-red-100">{analysis.trade_setup?.stop_loss_zone || 'N/A'}</p>
+                        </div>
+                        <div className="flex justify-between">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Target 1</p>
+                          <p className="text-sm font-medium text-green-900 dark:text-green-100">{analysis.trade_setup?.target_1 || 'N/A'}</p>
+                        </div>
+                        <div className="flex justify-between">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Target 2</p>
+                          <p className="text-sm font-medium text-green-900 dark:text-green-100">{analysis.trade_setup?.target_2 || 'N/A'}</p>
+                        </div>
+                        <div className="flex justify-between border-t border-blue-200 pt-2 dark:border-blue-800">
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Risk-Reward Ratio</p>
+                          <p className="text-sm font-bold text-blue-900 dark:text-blue-100">{analysis.trade_setup?.risk_reward_ratio || 'N/A'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Trendlines</p>
-                        <p className="mt-1">{analysis.trendlines}</p>
+                    </div>
+
+                    {/* Confirmation */}
+                    <div className="mt-4 rounded-lg border border-green-200 bg-white p-4 dark:border-green-800 dark:bg-gray-900">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Confirmation & Invalidations</h4>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Confirms When</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.confirmation?.what_confirms || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Invalidates When</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.confirmation?.what_invalidates || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Current State</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.confirmation?.current_state || 'N/A'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Breakouts</p>
-                        <p className="mt-1">{analysis.breakout_notes}</p>
+                    </div>
+
+                    {/* Scenarios */}
+                    <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Scenarios</h4>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <p className="text-xs text-green-600 dark:text-green-400">Bull Case (if pattern fails/reverses)</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.bull_case || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-red-600 dark:text-red-400">Bear Case (if pattern confirms)</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.bear_case || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">Neutral Case (consolidation/fakeout)</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.neutral_case || 'N/A'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Candlestick context</p>
-                        <p className="mt-1">{analysis.candlestick_notes}</p>
+                    </div>
+
+                    {/* Institutional Interpretation */}
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+                      <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">Institutional View</h4>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Institutional Action</p>
+                          <p className="text-sm text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.institutional_action || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Liquidity Hunt Risk</p>
+                          <p className="text-sm text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.liquidity_hunt_risk || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Dominant Behavior</p>
+                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.dominant_behavior || 'N/A'}</p>
+                        </div>
                       </div>
-                      {analysis.cv_fallback_summary && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{analysis.cv_fallback_summary}</p>
-                      )}
-                      {analysis.vision_secondary_note && (
-                        <p className="text-sm text-amber-800 dark:text-amber-200">
-                          Vision note: {analysis.vision_secondary_note}
-                        </p>
-                      )}
+                    </div>
+
+                    {/* Technical Details */}
+                    <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Technical Details</h4>
+                      <div className="mt-2 space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Support / resistance</p>
+                          <p>{analysis.support_resistance}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Trendlines</p>
+                          <p>{analysis.trendlines}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Breakouts</p>
+                          <p>{analysis.breakout_notes}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Candlestick context</p>
+                          <p>{analysis.candlestick_notes}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Reasoning</p>
+                          <p>{analysis.reasoning}</p>
+                        </div>
+                        {analysis.cv_fallback_summary && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{analysis.cv_fallback_summary}</p>
+                        )}
+                        {analysis.vision_secondary_note && (
+                          <p className="text-xs text-amber-800 dark:text-amber-200">
+                            Vision note: {analysis.vision_secondary_note}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
