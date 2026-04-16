@@ -126,8 +126,7 @@ export default function PDFToolPage() {
             PDF report copilot
           </h1>
           <p className="max-w-3xl text-lg text-gray-600 dark:text-gray-400">
-            Structured summary, risks, opportunities, and beginner-friendly explanations — tuned for Indian
-            investors reading annual reports, quarterly results, or investor decks.
+            Market intelligence engine: market reaction, catalyst classification, institutional interpretation, hidden signals, and forward watch.
           </p>
           <p className="mt-3 text-sm text-blue-800 dark:text-blue-200">
             Tip: open the Copilot button (bottom-right) to ask follow-ups about this file.

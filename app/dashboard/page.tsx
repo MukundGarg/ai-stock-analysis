@@ -6,7 +6,7 @@ export default function DashboardPage() {
       icon: '📄',
       title: 'Upload Financial Report',
       description:
-        'Structured PDF summary: insights, risks, opportunities, extracted figures, and beginner walkthrough (INR-aware).',
+        'Market intelligence engine: market reaction, catalyst classification, institutional interpretation, hidden signals, and forward watch.',
       href: '/dashboard/pdf',
     },
     {

@@ -74,13 +74,35 @@ def _pdf_model_pair() -> tuple[str, str]:
 
 def analyze_financial_report(text: str) -> dict[str, Any]:
     """
-    Analyze financial report text; return structured beginner-friendly output.
+    Analyze financial report text; return market intelligence output.
     Tries primary model then fallback when the failure looks retryable.
     """
 
     analysis_prompt = f"""You are a market intelligence engine for institutional investors. Analyze the corporate filing as a hedge fund analyst would.
 
-IMPORTANT RULES:
+CRITICAL: DO NOT USE ANY OLD TEMPLATE FORMAT. STRICTLY FOLLOW THE NEW SCHEMA BELOW.
+
+FORBIDDEN OUTPUT (DO NOT USE):
+- "Executive Summary"
+- "AI Market Signal" or "rating" or "signal"
+- "Beginner Walkthrough"
+- "Key Insights"
+- "Positives" or "key_positives"
+- "Risks"
+- "Company Snapshot"
+- "Strategic Intent"
+- "Analyst Watchlist"
+
+REQUIRED OUTPUT (USE ONLY THIS):
+{{
+    "market_reaction": "Direct impact on sentiment and price action (1-3 lines)",
+    "catalyst_type": "What kind of event this is: fundraising, debt, regulation, earnings, expansion, risk event, or other",
+    "institutional_interpretation": "How smart money / funds are likely to interpret this (2-3 lines)",
+    "hidden_signals": ["Dilution risk, leverage changes, liquidity shifts, governance implications, or other hidden signals"],
+    "forward_watch": ["What traders/investors will monitor next (3-5 items)"]
+}}
+
+RULES:
 - Return ONLY valid JSON (no markdown, no headings, no text outside JSON)
 - Do not include section titles or formatting
 - All list fields must be arrays
@@ -89,15 +111,7 @@ IMPORTANT RULES:
 - Avoid generic finance language
 - Prioritize market impact over explanation
 - Think like a hedge fund news analyst, not a blogger
-
-Return JSON with exactly this structure:
-{{
-    "market_reaction": "Direct impact on sentiment and price action (1-3 lines)",
-    "catalyst_type": "What kind of event this is: fundraising, debt, regulation, earnings, expansion, risk event, or other",
-    "institutional_interpretation": "How smart money / funds are likely to interpret this (2-3 lines)",
-    "hidden_signals": ["Dilution risk, leverage changes, liquidity shifts, governance implications, or other hidden signals"],
-    "forward_watch": ["What traders/investors will monitor next (3-5 items)"]
-}}
+- NEVER use the old template format with Executive Summary, Positives, Risks, etc.
 
 Financial report excerpt:
 {text}
