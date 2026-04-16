@@ -67,6 +67,8 @@ app.add_middleware(
 class AnalysisResponse(BaseModel):
     market_reaction: str
     catalyst_type: str
+    market_impact_strength: dict
+    directional_bias: dict
     institutional_interpretation: str
     hidden_signals: list[str] = []
     forward_watch: list[str] = []

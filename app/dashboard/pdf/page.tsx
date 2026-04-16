@@ -9,6 +9,15 @@ import { useRef, useState } from 'react';
 interface AnalysisResult {
   market_reaction: string;
   catalyst_type: string;
+  market_impact_strength: {
+    level: string;
+    probability_shift: number;
+  };
+  directional_bias: {
+    bias: string;
+    conviction: string;
+    reasoning: string;
+  };
   institutional_interpretation: string;
   hidden_signals: string[];
   forward_watch: string[];
@@ -248,11 +257,38 @@ export default function PDFToolPage() {
                     <p className="leading-relaxed text-blue-950 dark:text-blue-100">{analysis.market_reaction}</p>
                   </section>
 
-                  <section className="rounded-xl border border-purple-200 bg-purple-50/50 p-6 dark:border-purple-900 dark:bg-purple-950/30">
-                    <h3 className="mb-3 text-xl font-bold text-purple-900 dark:text-purple-100">Catalyst Type</h3>
-                    <div className="inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold bg-purple-600 text-white">
-                      {analysis.catalyst_type}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <section className="rounded-xl border border-purple-200 bg-purple-50/50 p-6 dark:border-purple-900 dark:bg-purple-950/30">
+                      <h3 className="mb-3 text-xl font-bold text-purple-900 dark:text-purple-100">Catalyst Type</h3>
+                      <div className="inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold bg-purple-600 text-white">
+                        {analysis.catalyst_type}
+                      </div>
+                    </section>
+
+                    <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-6 dark:border-indigo-900 dark:bg-indigo-950/30">
+                      <h3 className="mb-3 text-xl font-bold text-indigo-900 dark:text-indigo-100">Market Impact Strength</h3>
+                      <div className="flex items-center gap-3">
+                        <span className="rounded-full px-3 py-1 text-sm font-semibold bg-indigo-600 text-white">
+                          {analysis.market_impact_strength?.level}
+                        </span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Probability Shift: {analysis.market_impact_strength?.probability_shift}%
+                        </span>
+                      </div>
+                    </section>
+                  </div>
+
+                  <section className="rounded-xl border border-green-200 bg-green-50/50 p-6 dark:border-green-900 dark:bg-green-950/30">
+                    <h3 className="mb-3 text-xl font-bold text-green-900 dark:text-green-100">Directional Bias</h3>
+                    <div className="flex items-center gap-4 mb-2">
+                      <span className="rounded-full px-3 py-1 text-sm font-semibold bg-green-600 text-white">
+                        {analysis.directional_bias?.bias}
+                      </span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Conviction: {analysis.directional_bias?.conviction}
+                      </span>
                     </div>
+                    <p className="text-sm text-green-950 dark:text-green-100">{analysis.directional_bias?.reasoning}</p>
                   </section>
 
                   <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">

@@ -80,38 +80,39 @@ def analyze_financial_report(text: str) -> dict[str, Any]:
 
     analysis_prompt = f"""You are a market intelligence engine for institutional investors. Analyze the corporate filing as a hedge fund analyst would.
 
-CRITICAL: DO NOT USE ANY OLD TEMPLATE FORMAT. STRICTLY FOLLOW THE NEW SCHEMA BELOW.
+CRITICAL: DO NOT USE OLD TEMPLATE HEADINGS. EMBED ANALYTICAL DEPTH NATURALLY.
 
-FORBIDDEN OUTPUT (DO NOT USE):
-- "Executive Summary"
-- "AI Market Signal" or "rating" or "signal"
-- "Beginner Walkthrough"
-- "Key Insights"
-- "Positives" or "key_positives"
-- "Risks"
-- "Company Snapshot"
-- "Strategic Intent"
-- "Analyst Watchlist"
+FORBIDDEN: Do NOT create separate sections labeled "Executive Summary", "Beginner Walkthrough", "Key Insights", "Positives", "Risks", "Company Snapshot", "Strategic Intent", "Analyst Watchlist".
 
-REQUIRED OUTPUT (USE ONLY THIS):
+INSTEAD: Embed these concepts naturally within the intelligence sections below.
+
+Return JSON with exactly this structure:
 {{
-    "market_reaction": "Direct impact on sentiment and price action (1-3 lines)",
+    "market_reaction": "Direct impact on sentiment and price action. Include what happened and why it matters (executive summary logic embedded) (2-3 lines)",
     "catalyst_type": "What kind of event this is: fundraising, debt, regulation, earnings, expansion, risk event, or other",
-    "institutional_interpretation": "How smart money / funds are likely to interpret this (2-3 lines)",
-    "hidden_signals": ["Dilution risk, leverage changes, liquidity shifts, governance implications, or other hidden signals"],
-    "forward_watch": ["What traders/investors will monitor next (3-5 items)"]
+    "market_impact_strength": {{
+        "level": "Low | Medium | High",
+        "probability_shift": number (0-100)
+    }},
+    "directional_bias": {{
+        "bias": "Bullish | Bearish | Neutral",
+        "conviction": "Weak | Moderate | Strong",
+        "reasoning": "Why this bias (1-2 lines)"
+    }},
+    "institutional_interpretation": "How smart money/funds interpret this. Include strategic intent (why company is doing this) and relevant company context if needed (2-3 lines)",
+    "hidden_signals": ["Dilution risk, leverage changes, liquidity shifts, governance implications, upside catalysts, non-obvious implications (embed risks, positives, key insights here)"],
+    "forward_watch": ["What traders/investors will monitor next. Include what analysts/institutions will track and simplified explanation of what matters next (embed analyst watchlist and beginner walkthrough logic) (4-6 items)"]
 }}
 
 RULES:
 - Return ONLY valid JSON (no markdown, no headings, no text outside JSON)
-- Do not include section titles or formatting
 - All list fields must be arrays
 - If no items exist for a list field, return empty array []
 - Be concise but high-signal
 - Avoid generic finance language
 - Prioritize market impact over explanation
 - Think like a hedge fund news analyst, not a blogger
-- NEVER use the old template format with Executive Summary, Positives, Risks, etc.
+- Embed analytical depth naturally, do not label concepts
 
 Financial report excerpt:
 {text}
@@ -172,6 +173,15 @@ def _parse_formatted_text_to_json(text: str) -> dict[str, Any]:
     result: dict[str, Any] = {
         "market_reaction": "",
         "catalyst_type": "unknown",
+        "market_impact_strength": {
+            "level": "Medium",
+            "probability_shift": 50
+        },
+        "directional_bias": {
+            "bias": "Neutral",
+            "conviction": "Moderate",
+            "reasoning": "Insufficient data"
+        },
         "institutional_interpretation": "",
         "hidden_signals": [],
         "forward_watch": []
@@ -184,6 +194,8 @@ def _parse_formatted_text_to_json(text: str) -> dict[str, Any]:
     section_mapping = {
         "market reaction": "market_reaction",
         "catalyst type": "catalyst_type",
+        "market impact strength": "market_impact_strength",
+        "directional bias": "directional_bias",
         "institutional interpretation": "institutional_interpretation",
         "hidden signals": "hidden_signals",
         "forward watch": "forward_watch"
@@ -272,6 +284,15 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
     result: dict[str, Any] = {
         "market_reaction": analysis.get("market_reaction", ""),
         "catalyst_type": analysis.get("catalyst_type", "unknown"),
+        "market_impact_strength": analysis.get("market_impact_strength", {
+            "level": "Medium",
+            "probability_shift": 50
+        }),
+        "directional_bias": analysis.get("directional_bias", {
+            "bias": "Neutral",
+            "conviction": "Moderate",
+            "reasoning": "Insufficient data"
+        }),
         "institutional_interpretation": analysis.get("institutional_interpretation", ""),
         "hidden_signals": analysis.get("hidden_signals", []),
         "forward_watch": analysis.get("forward_watch", []),
@@ -282,6 +303,37 @@ def _validate_and_normalize_analysis(analysis: dict[str, Any]) -> dict[str, Any]
         if not isinstance(result[list_key], list):
             result[list_key] = [str(result[list_key])]
         result[list_key] = [str(x) for x in result[list_key]][:10]
+
+    # Normalize market_impact_strength nested object
+    if not isinstance(result["market_impact_strength"], dict):
+        result["market_impact_strength"] = {
+            "level": "Medium",
+            "probability_shift": 50
+        }
+    else:
+        if "level" not in result["market_impact_strength"]:
+            result["market_impact_strength"]["level"] = "Medium"
+        if "probability_shift" not in result["market_impact_strength"]:
+            result["market_impact_strength"]["probability_shift"] = 50
+        try:
+            result["market_impact_strength"]["probability_shift"] = int(result["market_impact_strength"]["probability_shift"])
+        except (ValueError, TypeError):
+            result["market_impact_strength"]["probability_shift"] = 50
+
+    # Normalize directional_bias nested object
+    if not isinstance(result["directional_bias"], dict):
+        result["directional_bias"] = {
+            "bias": "Neutral",
+            "conviction": "Moderate",
+            "reasoning": "Insufficient data"
+        }
+    else:
+        if "bias" not in result["directional_bias"]:
+            result["directional_bias"]["bias"] = "Neutral"
+        if "conviction" not in result["directional_bias"]:
+            result["directional_bias"]["conviction"] = "Moderate"
+        if "reasoning" not in result["directional_bias"]:
+            result["directional_bias"]["reasoning"] = "Insufficient data"
 
     # Limit text field lengths
     for text_key in ("market_reaction", "catalyst_type", "institutional_interpretation"):
@@ -367,6 +419,15 @@ def create_fallback_analysis(
     return {
         "market_reaction": summary,
         "catalyst_type": "unknown",
+        "market_impact_strength": {
+            "level": "Medium",
+            "probability_shift": 50
+        },
+        "directional_bias": {
+            "bias": "Neutral",
+            "conviction": "Moderate",
+            "reasoning": "Insufficient data for bias determination"
+        },
         "institutional_interpretation": "Institutional interpretation requires full AI analysis or manual reading of the document.",
         "hidden_signals": hidden_signals[:5],
         "forward_watch": forward_watch[:5]

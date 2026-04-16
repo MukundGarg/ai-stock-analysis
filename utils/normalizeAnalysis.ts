@@ -2,6 +2,15 @@ export function normalizeAnalysis(data: any) {
   return {
     market_reaction: "",
     catalyst_type: "unknown",
+    market_impact_strength: {
+      level: "Medium",
+      probability_shift: 50
+    },
+    directional_bias: {
+      bias: "Neutral",
+      conviction: "Moderate",
+      reasoning: "Insufficient data"
+    },
     institutional_interpretation: "",
     hidden_signals: [],
     forward_watch: [],
