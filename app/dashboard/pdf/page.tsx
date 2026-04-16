@@ -6,12 +6,25 @@ import { getApiUrl } from '@/lib/api';
 import { normalizeAnalysis } from '@/utils/normalizeAnalysis';
 import { useRef, useState } from 'react';
 
+interface MarketSignal {
+  signal: string;
+  confidence: number;
+}
+
 interface AnalysisResult {
-  market_reaction: string;
-  catalyst_type: string;
+  executive_summary: string;
+  ai_market_signal: MarketSignal;
+  company_snapshot: string;
+  beginner_walkthrough: string;
+  key_insights: string[];
+  strategic_intent: string[];
+  key_positives: string[];
+  risks: string[];
+  analyst_watchlist: string[];
   market_impact_strength: {
     level: string;
     probability_shift: number;
+    reasoning: string;
   };
   directional_bias: {
     bias: string;
@@ -253,21 +266,87 @@ export default function PDFToolPage() {
                   )}
 
                   <section className="rounded-xl border border-blue-200 bg-blue-50/50 p-6 dark:border-blue-900 dark:bg-blue-950/30">
-                    <h3 className="mb-3 text-xl font-bold text-blue-900 dark:text-blue-100">Market Reaction</h3>
-                    <p className="leading-relaxed text-blue-950 dark:text-blue-100">{analysis.market_reaction}</p>
+                    <h3 className="mb-3 text-xl font-bold text-blue-900 dark:text-blue-100">Executive Summary</h3>
+                    <p className="leading-relaxed text-blue-950 dark:text-blue-100">{analysis.executive_summary}</p>
+                  </section>
+
+                  {analysis.ai_market_signal && (
+                    <section className="rounded-xl border border-purple-200 bg-purple-50/50 p-6 dark:border-purple-900 dark:bg-purple-950/30">
+                      <h3 className="mb-3 text-xl font-bold text-purple-900 dark:text-purple-100">AI Market Signal</h3>
+                      <div className="flex items-center gap-4">
+                        <span className="rounded-full px-3 py-1 text-sm font-semibold bg-purple-600 text-white">
+                          {analysis.ai_market_signal.signal}
+                        </span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Confidence: {analysis.ai_market_signal.confidence}%
+                        </span>
+                      </div>
+                    </section>
+                  )}
+
+                  <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+                    <h3 className="mb-3 text-xl font-bold text-gray-900 dark:text-white">Company Snapshot</h3>
+                    <p className="leading-relaxed text-gray-700 dark:text-gray-300">{analysis.company_snapshot}</p>
+                  </section>
+
+                  <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-6 dark:border-indigo-900 dark:bg-indigo-950/30">
+                    <h3 className="mb-3 text-xl font-bold text-indigo-900 dark:text-indigo-100">Beginner Walkthrough</h3>
+                    <p className="leading-relaxed text-indigo-950 dark:text-indigo-100">{analysis.beginner_walkthrough}</p>
+                  </section>
+
+                  <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+                    <h3 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">Key Insights</h3>
+                    <ul className="space-y-2">
+                      {analysis.key_insights?.map((x, i) => (
+                        <li key={i} className="flex gap-2 text-gray-700 dark:text-gray-300">
+                          <span className="text-indigo-600 dark:text-indigo-400">•</span>
+                          <span>{x}</span>
+                        </li>
+                      )) || <li className="text-gray-500 dark:text-gray-400">No insights available</li>}
+                    </ul>
+                  </section>
+
+                  <section className="rounded-xl border border-purple-200 bg-purple-50/50 p-6 dark:border-purple-900 dark:bg-purple-950/30">
+                    <h3 className="mb-4 text-xl font-bold text-purple-900 dark:text-purple-100">Strategic Intent</h3>
+                    <ul className="space-y-2 text-purple-950 dark:text-purple-100">
+                      {analysis.strategic_intent?.map((x, i) => (
+                        <li key={i}>• {x}</li>
+                      )) || <li className="text-gray-500 dark:text-gray-400">No strategic intent available</li>}
+                    </ul>
                   </section>
 
                   <div className="grid gap-6 md:grid-cols-2">
-                    <section className="rounded-xl border border-purple-200 bg-purple-50/50 p-6 dark:border-purple-900 dark:bg-purple-950/30">
-                      <h3 className="mb-3 text-xl font-bold text-purple-900 dark:text-purple-100">Catalyst Type</h3>
-                      <div className="inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold bg-purple-600 text-white">
-                        {analysis.catalyst_type}
-                      </div>
+                    <section className="rounded-xl border border-green-200 bg-white p-6 dark:border-green-900 dark:bg-gray-900">
+                      <h3 className="mb-4 text-lg font-bold text-green-700 dark:text-green-400">Positives</h3>
+                      <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                        {analysis.key_positives?.map((x, i) => (
+                          <li key={i}>• {x}</li>
+                        )) || <li className="text-gray-500 dark:text-gray-400">No positives available</li>}
+                      </ul>
                     </section>
+                    <section className="rounded-xl border border-red-200 bg-white p-6 dark:border-red-900 dark:bg-gray-900">
+                      <h3 className="mb-4 text-lg font-bold text-red-700 dark:text-red-400">Risks</h3>
+                      <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                        {analysis.risks?.map((x, i) => (
+                          <li key={i}>• {x}</li>
+                        )) || <li className="text-gray-500 dark:text-gray-400">No risks available</li>}
+                      </ul>
+                    </section>
+                  </div>
 
+                  <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 dark:border-amber-900 dark:bg-amber-950/30">
+                    <h3 className="mb-4 text-xl font-bold text-amber-900 dark:text-amber-100">Analyst Watchlist</h3>
+                    <ul className="space-y-2 text-amber-950 dark:text-amber-100">
+                      {analysis.analyst_watchlist?.map((x, i) => (
+                        <li key={i}>• {x}</li>
+                      )) || <li className="text-gray-500 dark:text-gray-400">No watchlist available</li>}
+                    </ul>
+                  </section>
+
+                  <div className="grid gap-6 md:grid-cols-2">
                     <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-6 dark:border-indigo-900 dark:bg-indigo-950/30">
                       <h3 className="mb-3 text-xl font-bold text-indigo-900 dark:text-indigo-100">Market Impact Strength</h3>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 mb-2">
                         <span className="rounded-full px-3 py-1 text-sm font-semibold bg-indigo-600 text-white">
                           {analysis.market_impact_strength?.level}
                         </span>
@@ -275,21 +354,22 @@ export default function PDFToolPage() {
                           Probability Shift: {analysis.market_impact_strength?.probability_shift}%
                         </span>
                       </div>
+                      <p className="text-sm text-indigo-950 dark:text-indigo-100">{analysis.market_impact_strength?.reasoning}</p>
+                    </section>
+
+                    <section className="rounded-xl border border-green-200 bg-green-50/50 p-6 dark:border-green-900 dark:bg-green-950/30">
+                      <h3 className="mb-3 text-xl font-bold text-green-900 dark:text-green-100">Directional Bias</h3>
+                      <div className="flex items-center gap-4 mb-2">
+                        <span className="rounded-full px-3 py-1 text-sm font-semibold bg-green-600 text-white">
+                          {analysis.directional_bias?.bias}
+                        </span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Conviction: {analysis.directional_bias?.conviction}
+                        </span>
+                      </div>
+                      <p className="text-sm text-green-950 dark:text-green-100">{analysis.directional_bias?.reasoning}</p>
                     </section>
                   </div>
-
-                  <section className="rounded-xl border border-green-200 bg-green-50/50 p-6 dark:border-green-900 dark:bg-green-950/30">
-                    <h3 className="mb-3 text-xl font-bold text-green-900 dark:text-green-100">Directional Bias</h3>
-                    <div className="flex items-center gap-4 mb-2">
-                      <span className="rounded-full px-3 py-1 text-sm font-semibold bg-green-600 text-white">
-                        {analysis.directional_bias?.bias}
-                      </span>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Conviction: {analysis.directional_bias?.conviction}
-                      </span>
-                    </div>
-                    <p className="text-sm text-green-950 dark:text-green-100">{analysis.directional_bias?.reasoning}</p>
-                  </section>
 
                   <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
                     <h3 className="mb-3 text-xl font-bold text-gray-900 dark:text-white">Institutional Interpretation</h3>

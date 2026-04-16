@@ -1,10 +1,18 @@
 export function normalizeAnalysis(data: any) {
   return {
-    market_reaction: "",
-    catalyst_type: "unknown",
+    executive_summary: "",
+    ai_market_signal: { signal: "Neutral", confidence: 50 },
+    company_snapshot: "",
+    beginner_walkthrough: "",
+    key_insights: [],
+    strategic_intent: [],
+    key_positives: [],
+    risks: [],
+    analyst_watchlist: [],
     market_impact_strength: {
       level: "Medium",
-      probability_shift: 50
+      probability_shift: 50,
+      reasoning: "Insufficient data"
     },
     directional_bias: {
       bias: "Neutral",
