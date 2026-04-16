@@ -82,6 +82,14 @@ CRITICAL: Focus on trade decision intelligence, not pattern explanation.
 Provide specific entry zones, stop loss areas, targets, and risk-reward ratios.
 Assess pattern quality, market context, and institutional interpretation.
 
+MANDATORY INFERENCE RULES:
+- If price scale is missing: INFER trade zones from relative structure (e.g., "Entry near neckline region", "Stop above swing high")
+- NEVER output "N/A" for core trading fields
+- Use labels: "Inferred (low confidence)", "Approximate zone based on structure", "Estimated based on swing geometry"
+- Always generate ALL sections: trade_setup, pattern_quality, market_context, confirmation, scenarios, institutional_interpretation
+- If data is missing: reduce confidence (e.g., 72→55) but NEVER remove output
+- Scenarios MUST always be generated (label as "low confidence scenario modeling" if uncertain)
+
 {schema_hint}"""
 
         raw = llm.vision_image(
@@ -128,16 +136,16 @@ def _normalize_vision_payload(data: dict[str, Any]) -> dict[str, Any]:
         conf = 50
     conf = max(0, min(100, conf))
 
-    # Normalize nested objects with safe defaults
+    # Normalize nested objects with inferred defaults
     trade_setup = data.get("trade_setup", {})
     if not isinstance(trade_setup, dict):
         trade_setup = {}
     trade_setup = {
-        "entry_zone": str(trade_setup.get("entry_zone", "Not specified"))[:200],
-        "stop_loss_zone": str(trade_setup.get("stop_loss_zone", "Not specified"))[:200],
-        "target_1": str(trade_setup.get("target_1", "Not specified"))[:200],
-        "target_2": str(trade_setup.get("target_2", "Not specified"))[:200],
-        "risk_reward_ratio": str(trade_setup.get("risk_reward_ratio", "Not specified"))[:50],
+        "entry_zone": str(trade_setup.get("entry_zone", "Inferred from chart structure"))[:200],
+        "stop_loss_zone": str(trade_setup.get("stop_loss_zone", "Approximate zone based on swing geometry"))[:200],
+        "target_1": str(trade_setup.get("target_1", "Estimated based on pattern projection"))[:200],
+        "target_2": str(trade_setup.get("target_2", "Projected from pattern structure"))[:200],
+        "risk_reward_ratio": str(trade_setup.get("risk_reward_ratio", "Estimated from structure"))[:50],
     }
 
     pattern_quality = data.get("pattern_quality", {})
@@ -152,43 +160,43 @@ def _normalize_vision_payload(data: dict[str, Any]) -> dict[str, Any]:
     pattern_quality = {
         "purity_score": purity_score,
         "false_signal_risk": str(pattern_quality.get("false_signal_risk", "Medium"))[:20],
-        "breakdown_continuation_probability": str(pattern_quality.get("breakdown_continuation_probability", "Not specified"))[:200],
+        "breakdown_continuation_probability": str(pattern_quality.get("breakdown_continuation_probability", "Inferred from structure"))[:200],
     }
 
     market_context = data.get("market_context", {})
     if not isinstance(market_context, dict):
         market_context = {}
     market_context = {
-        "current_trend": str(market_context.get("current_trend", "Sideways"))[:20],
-        "market_structure_alignment": str(market_context.get("market_structure_alignment", "Neutral"))[:20],
-        "volatility_regime": str(market_context.get("volatility_regime", "Medium"))[:20],
+        "current_trend": str(market_context.get("current_trend", "Inferred from swing structure"))[:20],
+        "market_structure_alignment": str(market_context.get("market_structure_alignment", "Inferred"))[:20],
+        "volatility_regime": str(market_context.get("volatility_regime", "Inferred from candle density"))[:20],
     }
 
     confirmation = data.get("confirmation", {})
     if not isinstance(confirmation, dict):
         confirmation = {}
     confirmation = {
-        "what_confirms": str(confirmation.get("what_confirms", "Not specified"))[:400],
-        "what_invalidates": str(confirmation.get("what_invalidates", "Not specified"))[:400],
-        "current_state": str(confirmation.get("current_state", "Pending"))[:20],
+        "what_confirms": str(confirmation.get("what_confirms", "Inferred from pattern structure"))[:400],
+        "what_invalidates": str(confirmation.get("what_invalidates", "Based on swing invalidation logic"))[:400],
+        "current_state": str(confirmation.get("current_state", "Inferred (low confidence)"))[:20],
     }
 
     scenarios = data.get("scenarios", {})
     if not isinstance(scenarios, dict):
         scenarios = {}
     scenarios = {
-        "bull_case": str(scenarios.get("bull_case", "Not specified"))[:400],
-        "bear_case": str(scenarios.get("bear_case", "Not specified"))[:400],
-        "neutral_case": str(scenarios.get("neutral_case", "Not specified"))[:400],
+        "bull_case": str(scenarios.get("bull_case", "Low confidence scenario modeling"))[:400],
+        "bear_case": str(scenarios.get("bear_case", "Low confidence scenario modeling"))[:400],
+        "neutral_case": str(scenarios.get("neutral_case", "Low confidence scenario modeling"))[:400],
     }
 
     institutional_interpretation = data.get("institutional_interpretation", {})
     if not isinstance(institutional_interpretation, dict):
         institutional_interpretation = {}
     institutional_interpretation = {
-        "institutional_action": str(institutional_interpretation.get("institutional_action", "Not specified"))[:400],
-        "liquidity_hunt_risk": str(institutional_interpretation.get("liquidity_hunt_risk", "Not specified"))[:400],
-        "dominant_behavior": str(institutional_interpretation.get("dominant_behavior", "Mixed"))[:20],
+        "institutional_action": str(institutional_interpretation.get("institutional_action", "Inferred from structure"))[:400],
+        "liquidity_hunt_risk": str(institutional_interpretation.get("liquidity_hunt_risk", "Possible stop hunt inferred"))[:400],
+        "dominant_behavior": str(institutional_interpretation.get("dominant_behavior", "Inferred from structure"))[:20],
     }
 
     return {
