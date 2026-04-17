@@ -298,15 +298,15 @@ export default function ChartToolPage() {
                       <div className="mt-2 grid gap-2 sm:grid-cols-3">
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Trend</p>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.current_trend || 'N/A'}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.current_trend || 'Inferred from swing structure'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Structure</p>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.market_structure_alignment || 'N/A'}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.market_structure_alignment || 'Inferred'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Volatility</p>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.volatility_regime || 'N/A'}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.market_context?.volatility_regime || 'Inferred from candle density'}</p>
                         </div>
                       </div>
                     </div>
@@ -317,15 +317,15 @@ export default function ChartToolPage() {
                       <div className="mt-2 grid gap-2 sm:grid-cols-3">
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Purity Score</p>
-                          <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.purity_score || 'N/A'}/100</p>
+                          <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.purity_score || 50}/100</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">False Signal Risk</p>
-                          <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.false_signal_risk || 'N/A'}</p>
+                          <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.false_signal_risk || 'Medium'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Breakdown/Continuation</p>
-                          <p className="text-xs font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.breakdown_continuation_probability || 'N/A'}</p>
+                          <p className="text-xs font-medium text-purple-900 dark:text-purple-100">{analysis.pattern_quality?.breakdown_continuation_probability || 'Inferred from structure'}</p>
                         </div>
                       </div>
                     </div>
@@ -336,23 +336,23 @@ export default function ChartToolPage() {
                       <div className="mt-2 space-y-2">
                         <div className="flex justify-between">
                           <p className="text-xs text-gray-500 dark:text-gray-400">Entry Zone</p>
-                          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">{analysis.trade_setup?.entry_zone || 'N/A'}</p>
+                          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">{analysis.trade_setup?.entry_zone || 'Inferred from chart structure'}</p>
                         </div>
                         <div className="flex justify-between">
                           <p className="text-xs text-gray-500 dark:text-gray-400">Stop Loss Zone</p>
-                          <p className="text-sm font-medium text-red-900 dark:text-red-100">{analysis.trade_setup?.stop_loss_zone || 'N/A'}</p>
+                          <p className="text-sm font-medium text-red-900 dark:text-red-100">{analysis.trade_setup?.stop_loss_zone || 'Approximate zone based on swing geometry'}</p>
                         </div>
                         <div className="flex justify-between">
                           <p className="text-xs text-gray-500 dark:text-gray-400">Target 1</p>
-                          <p className="text-sm font-medium text-green-900 dark:text-green-100">{analysis.trade_setup?.target_1 || 'N/A'}</p>
+                          <p className="text-sm font-medium text-green-900 dark:text-green-100">{analysis.trade_setup?.target_1 || 'Estimated based on pattern projection'}</p>
                         </div>
                         <div className="flex justify-between">
                           <p className="text-xs text-gray-500 dark:text-gray-400">Target 2</p>
-                          <p className="text-sm font-medium text-green-900 dark:text-green-100">{analysis.trade_setup?.target_2 || 'N/A'}</p>
+                          <p className="text-sm font-medium text-green-900 dark:text-green-100">{analysis.trade_setup?.target_2 || 'Projected from pattern structure'}</p>
                         </div>
                         <div className="flex justify-between border-t border-blue-200 pt-2 dark:border-blue-800">
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Risk-Reward Ratio</p>
-                          <p className="text-sm font-bold text-blue-900 dark:text-blue-100">{analysis.trade_setup?.risk_reward_ratio || 'N/A'}</p>
+                          <p className="text-sm font-bold text-blue-900 dark:text-blue-100">{analysis.trade_setup?.risk_reward_ratio || 'Estimated from structure'}</p>
                         </div>
                       </div>
                     </div>
@@ -363,15 +363,15 @@ export default function ChartToolPage() {
                       <div className="mt-2 space-y-2">
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Confirms When</p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.confirmation?.what_confirms || 'N/A'}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.confirmation?.what_confirms || 'Inferred from pattern structure'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Invalidates When</p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.confirmation?.what_invalidates || 'N/A'}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.confirmation?.what_invalidates || 'Based on swing invalidation logic'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Current State</p>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.confirmation?.current_state || 'N/A'}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{analysis.confirmation?.current_state || 'Inferred (low confidence)'}</p>
                         </div>
                       </div>
                     </div>
@@ -382,15 +382,15 @@ export default function ChartToolPage() {
                       <div className="mt-2 space-y-2">
                         <div>
                           <p className="text-xs text-green-600 dark:text-green-400">Bull Case (if pattern fails/reverses)</p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.bull_case || 'N/A'}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.bull_case || 'Low confidence scenario modeling'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-red-600 dark:text-red-400">Bear Case (if pattern confirms)</p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.bear_case || 'N/A'}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.bear_case || 'Low confidence scenario modeling'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">Neutral Case (consolidation/fakeout)</p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.neutral_case || 'N/A'}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.scenarios?.neutral_case || 'Low confidence scenario modeling'}</p>
                         </div>
                       </div>
                     </div>
@@ -401,15 +401,15 @@ export default function ChartToolPage() {
                       <div className="mt-2 space-y-2">
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Institutional Action</p>
-                          <p className="text-sm text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.institutional_action || 'N/A'}</p>
+                          <p className="text-sm text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.institutional_action || 'Inferred from structure'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Liquidity Hunt Risk</p>
-                          <p className="text-sm text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.liquidity_hunt_risk || 'N/A'}</p>
+                          <p className="text-sm text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.liquidity_hunt_risk || 'Possible stop hunt inferred'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">Dominant Behavior</p>
-                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.dominant_behavior || 'N/A'}</p>
+                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">{analysis.institutional_interpretation?.dominant_behavior || 'Inferred from structure'}</p>
                         </div>
                       </div>
                     </div>

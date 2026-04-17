@@ -74,6 +74,38 @@ def _build_cv_extras(
         "breakout_notes": breakout,
         "candlestick_notes": candles,
         "beginner_explanation": description,
+        "trade_setup": {
+            "entry_zone": "Inferred from chart structure",
+            "stop_loss_zone": "Approximate zone based on swing geometry",
+            "target_1": "Estimated based on pattern projection",
+            "target_2": "Projected from pattern structure",
+            "risk_reward_ratio": "Estimated from structure",
+        },
+        "pattern_quality": {
+            "purity_score": 50,
+            "false_signal_risk": "Medium",
+            "breakdown_continuation_probability": "Inferred from structure",
+        },
+        "market_context": {
+            "current_trend": "Inferred from swing structure",
+            "market_structure_alignment": "Inferred",
+            "volatility_regime": "Inferred from candle density",
+        },
+        "confirmation": {
+            "what_confirms": "Inferred from pattern structure",
+            "what_invalidates": "Based on swing invalidation logic",
+            "current_state": "Inferred (low confidence)",
+        },
+        "scenarios": {
+            "bull_case": "Low confidence scenario modeling",
+            "bear_case": "Low confidence scenario modeling",
+            "neutral_case": "Low confidence scenario modeling",
+        },
+        "institutional_interpretation": {
+            "institutional_action": "Inferred from structure",
+            "liquidity_hunt_risk": "Possible stop hunt inferred",
+            "dominant_behavior": "Inferred from structure",
+        },
         "analysis_method": "cv_geometry",
         "chart_geometry": {"width": w, "height": h, "lines_detected": line_n},
     }

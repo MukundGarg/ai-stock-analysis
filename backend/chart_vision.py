@@ -339,6 +339,12 @@ def merge_vision_and_cv(vision: dict[str, Any] | None, cv_payload: dict[str, Any
             "breakout_notes": vision.get("breakout_notes", ""),
             "candlestick_notes": vision.get("candlestick_notes", ""),
             "beginner_explanation": vision.get("beginner_explanation", ""),
+            "trade_setup": vision.get("trade_setup", {}),
+            "pattern_quality": vision.get("pattern_quality", {}),
+            "market_context": vision.get("market_context", {}),
+            "confirmation": vision.get("confirmation", {}),
+            "scenarios": vision.get("scenarios", {}),
+            "institutional_interpretation": vision.get("institutional_interpretation", {}),
             "analysis_method": "vision_primary",
             "cv_fallback_summary": _cv_summary(cv_payload),
         }
@@ -346,8 +352,14 @@ def merge_vision_and_cv(vision: dict[str, Any] | None, cv_payload: dict[str, Any
     return {
         **cv_payload,
         "confidence_score": cv_conf,
+        "trade_setup": vision.get("trade_setup", {}) if vision else {},
+        "pattern_quality": vision.get("pattern_quality", {}) if vision else {},
+        "market_context": vision.get("market_context", {}) if vision else {},
+        "confirmation": vision.get("confirmation", {}) if vision else {},
+        "scenarios": vision.get("scenarios", {}) if vision else {},
+        "institutional_interpretation": vision.get("institutional_interpretation", {}) if vision else {},
         "analysis_method": "cv_primary",
-        "vision_secondary_note": vision.get("reasoning", "")[:500],
+        "vision_secondary_note": vision.get("reasoning", "")[:500] if vision else None,
     }
 
 
