@@ -31,6 +31,7 @@ from news_fetcher import fetch_financial_news
 from pdf_parser import clean_and_truncate_text, extract_text_from_pdf
 from pattern_detector import detect_pattern
 from sentiment_analyzer import analyze_sentiment, enrich_sentiment_with_llm
+from services.market_service import get_stock_quote, get_stock_candles, get_market_news
 
 dotenv.load_dotenv()
 
@@ -504,6 +505,86 @@ def fallback_sentiment_explanation(sentiment: str, key_reasons: list[str]) -> st
     if sentiment == "Bearish":
         return f"Headlines lean cautious on {reasons_text}. Risk sentiment can change quickly — read beyond titles."
     return f"Signals are mixed around {reasons_text}. Wait for clearer trend or dig into company-specific facts."
+
+
+# Market Data Endpoints (Finnhub)
+
+
+class StockQuoteResponse(BaseModel):
+    symbol: str
+    current_price: float
+    change: float
+    change_percent: float
+    high: float
+    low: float
+    open: float
+    previous_close: float
+    timestamp: int
+
+
+class CandleData(BaseModel):
+    timestamp: int
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+
+
+class StockCandlesResponse(BaseModel):
+    symbol: str
+    resolution: str
+    candles: list[CandleData]
+
+
+class NewsArticleResponse(BaseModel):
+    id: int
+    category: str
+    headline: str
+    summary: str
+    source: str
+    url: str
+    datetime: int
+    related_symbols: list[str]
+
+
+@app.get("/market/quote/{symbol}", response_model=StockQuoteResponse)
+async def get_quote_endpoint(symbol: str):
+    """Get latest stock quote for a given symbol."""
+    try:
+        quote = await get_stock_quote(symbol)
+        return StockQuoteResponse(**quote)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        print(f"[Market] quote error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching stock quote: {e}") from e
+
+
+@app.get("/market/candles/{symbol}", response_model=StockCandlesResponse)
+async def get_candles_endpoint(symbol: str, resolution: str = "D", count: int = 30):
+    """Get OHLC candlestick data for a given symbol."""
+    try:
+        candles = await get_stock_candles(symbol, resolution, count)
+        return StockCandlesResponse(**candles)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        print(f"[Market] candles error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching stock candles: {e}") from e
+
+
+@app.get("/market/news", response_model=list[NewsArticleResponse])
+async def get_news_endpoint(category: str = "general", min_id: int = 0):
+    """Get market news from Finnhub."""
+    try:
+        news = await get_market_news(category, min_id)
+        return [NewsArticleResponse(**article) for article in news]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        print(f"[Market] news error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching market news: {e}") from e
 
 
 @app.exception_handler(HTTPException)
