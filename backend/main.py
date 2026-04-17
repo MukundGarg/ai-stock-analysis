@@ -211,23 +211,28 @@ async def learn_indian_markets():
 @app.post("/copilot/chat", response_model=CopilotResponse)
 async def copilot_chat_endpoint(body: CopilotRequest):
     try:
-        # Detect if question is market-related
-        message_lower = body.message.lower()
-        market_keywords = [
-            "market", "nifty", "sensex", "index", "up today", "down today", 
-            "falling", "rising", "why is", "what is driving", "stock market",
-            "trend", "movement", "gainers", "losers"
-        ]
-        is_market_question = any(keyword in message_lower for keyword in market_keywords)
+        from market_query_analyzer import analyze_query
+        from services.market_service import build_enriched_market_context
 
-        # Fetch market context if question is market-related
+        # Analyze the user's question
+        query_analysis = analyze_query(body.message)
+
+        # Fetch enriched market context for market-related questions
         market_context = None
-        if is_market_question:
+        if query_analysis.is_market_question:
             try:
-                from services.market_service import build_market_context
-                market_context = await build_market_context()
+                market_context = await build_enriched_market_context(
+                    symbols=query_analysis.mentioned_symbols or None,
+                    stock_names=query_analysis.raw_stock_names or None,
+                )
             except Exception as e:
-                print(f"[Copilot] Failed to fetch market context: {e}")
+                print(f"[Copilot] Failed to fetch enriched market context: {e}")
+                # Fallback to basic market context
+                try:
+                    from services.market_service import build_market_context
+                    market_context = await build_market_context()
+                except Exception as e2:
+                    print(f"[Copilot] Fallback market context also failed: {e2}")
 
         # Merge market context with workspace context
         combined_context = body.workspace_context or {}

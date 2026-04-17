@@ -28,36 +28,108 @@ def _trim_session(messages: list[dict[str, str]]) -> list[dict[str, str]]:
 
 
 def _system_prompt(workspace_context: dict[str, Any] | None) -> str:
-    base = f"""You are **BharatTrade Copilot**, a single intelligent assistant inside an Indian-market-focused stock learning app.
+    base = f"""You are **BharatTrade Copilot**, an intelligent Indian-market-focused trading assistant inside a stock learning app.
 
-Your role:
-- Answer questions about **Indian markets (NSE, BSE)**, stocks, F&O basics, risk, and how to read outputs from this app (PDF reports, chart patterns, sentiment).
-- Use **simple, beginner-friendly** language; define jargon briefly when you use it.
-- When users ask "Should I buy?": **do not give personalized buy/sell instructions**. Explain **how to think about the decision**, risks, position sizing concepts, and that they should use SEBI-registered advisors for advice.
-- Stay accurate; if uncertain, say so. Never invent live prices or guaranteed returns.
+## Your Core Rules
+
+1. **For market questions** (e.g. "Why is the market up?", "What is driving NIFTY?", "Why is Reliance falling?"):
+   - You MUST base your response on the **LIVE MARKET DATA** provided below.
+   - Reference **specific numbers**: index levels, percentage changes, stock prices, top gainers/losers.
+   - Cite **actual news headlines** from the data when explaining market movements.
+   - Explain movements like a **market analyst giving a daily briefing** — confident, data-backed, insightful.
+   - Connect the dots between data points: e.g. "NIFTY is up 1.2% driven by banking stocks — HDFC Bank gained 2.3% and ICICI rose 1.8%, likely on expectations of strong Q4 results."
+
+2. **NEVER say any of the following**:
+   - "I'm not aware of the current market situation"
+   - "I don't have access to real-time data"
+   - "There could be many reasons..."
+   - "I cannot provide real-time information"
+   You have live data — USE IT. If some data is missing, work with what is available and note the limitation briefly.
+
+3. **For educational/general questions** (e.g. "What is F&O?", "Explain P/E ratio"):
+   - Use **simple, beginner-friendly** language; define jargon briefly.
+   - Stay accurate; if uncertain, say so.
+
+4. **For "Should I buy?" type questions**:
+   - **Do not give personalized buy/sell instructions**.
+   - Explain **how to think about the decision**, risks, and that they should consult SEBI-registered advisors.
+
+5. **Never invent data**. Only use the market data provided below. Never fabricate prices, percentages, or news.
 
 {INDIAN_MARKETS_REFERENCE}
 """
+
     if workspace_context:
         try:
-            # Check if market_data is available
+            # Check if enriched market data is available
             if "market_data" in workspace_context:
                 market_data = workspace_context["market_data"]
-                market_section = f"""
-### Current Market Context (Live Data)
-- Market Direction: {market_data.get('market_direction', 'unknown').upper()}
-- NIFTY: {market_data.get('nifty', {}).get('current_price', 'N/A')} (Change: {market_data.get('nifty', {}).get('change_percent', 0):.2f}%)
-- SENSEX: {market_data.get('sensex', {}).get('current_price', 'N/A')} (Change: {market_data.get('sensex', {}).get('change_percent', 0):.2f}%)
+
+                # Use the pre-built data summary if available (much clearer for the LLM)
+                data_summary = market_data.get("data_summary", "")
+                if data_summary:
+                    base += f"""
+## ═══ LIVE MARKET DATA (use this to answer market questions) ═══
+
+{data_summary}
+
+═══ END LIVE DATA ═══
+
+**IMPORTANT**: When answering market questions, you MUST reference the specific data above. Quote actual numbers, name actual stocks, and cite actual headlines.
 """
-                headlines = market_data.get('news_headlines', [])
-                if headlines:
-                    market_section += "\n### Recent Market Headlines\n"
-                    for i, headline in enumerate(headlines[:3], 1):
-                        market_section += f"{i}. {headline.get('title', '')} ({headline.get('source', 'Unknown')})\n"
-                
-                base += market_section + "\n"
-                
-                # Remove market_data from workspace_context to avoid duplicate display
+                else:
+                    # Fallback to structured display if no summary
+                    market_section = f"""
+## ═══ LIVE MARKET DATA ═══
+- Market Direction: {market_data.get('market_direction', 'unknown').upper()}
+"""
+                    nifty = market_data.get('nifty', {})
+                    if nifty and nifty.get('current_price'):
+                        market_section += f"- NIFTY: ₹{nifty.get('current_price', 'N/A')} (Change: {nifty.get('change_percent', 0):.2f}%)\n"
+
+                    sensex = market_data.get('sensex', {})
+                    if sensex and sensex.get('current_price'):
+                        market_section += f"- SENSEX: ₹{sensex.get('current_price', 'N/A')} (Change: {sensex.get('change_percent', 0):.2f}%)\n"
+
+                    # Top movers
+                    top_gainers = market_data.get('top_gainers', [])
+                    if top_gainers:
+                        market_section += "\n### Top Gainers Today\n"
+                        for g in top_gainers[:5]:
+                            market_section += f"- {g.get('symbol', '').replace('.NS', '')}: ₹{g.get('price', 0):,.2f} ({g.get('change_percent', 0):+.2f}%)\n"
+
+                    top_losers = market_data.get('top_losers', [])
+                    if top_losers:
+                        market_section += "\n### Top Losers Today\n"
+                        for l in top_losers[:5]:
+                            market_section += f"- {l.get('symbol', '').replace('.NS', '')}: ₹{l.get('price', 0):,.2f} ({l.get('change_percent', 0):+.2f}%)\n"
+
+                    # Stock-specific quotes
+                    stock_quotes = market_data.get('stock_quotes', {})
+                    if stock_quotes:
+                        market_section += "\n### Stocks User Asked About\n"
+                        for sym, q in stock_quotes.items():
+                            market_section += (
+                                f"- {sym.replace('.NS', '')}: ₹{q.get('price', 0):,.2f} "
+                                f"({q.get('change_percent', 0):+.2f}%), "
+                                f"Open: ₹{q.get('open', 0):,.2f}, "
+                                f"High: ₹{q.get('high', 0):,.2f}, "
+                                f"Low: ₹{q.get('low', 0):,.2f}\n"
+                            )
+
+                    # Headlines
+                    headlines = market_data.get('news_headlines', [])
+                    stock_news = market_data.get('stock_news', [])
+                    all_headlines = headlines + stock_news
+                    if all_headlines:
+                        market_section += "\n### Recent Market Headlines\n"
+                        for i, headline in enumerate(all_headlines[:8], 1):
+                            market_section += f"{i}. {headline.get('title', '')} ({headline.get('source', 'Unknown')})\n"
+
+                    market_section += "\n═══ END LIVE DATA ═══\n"
+                    base += market_section
+
+                # Add other workspace context (PDF analysis, chart analysis etc.)
                 other_context = {k: v for k, v in workspace_context.items() if k != 'market_data'}
                 if other_context:
                     ctx = json.dumps(other_context, ensure_ascii=False, indent=2)[:12000]

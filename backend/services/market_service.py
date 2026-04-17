@@ -6,7 +6,7 @@ Fetches stock quotes, candlestick data, and market news from Finnhub API.
 
 import os
 import httpx
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime, timedelta, timezone
 
 
@@ -427,3 +427,197 @@ async def build_market_context() -> dict[str, Any]:
         print(f"[Market Context] Failed to fetch news: {e}")
 
     return context
+
+
+async def _fetch_top_movers(symbols: list[str], top_n: int = 5) -> dict[str, list[dict]]:
+    """
+    Fetch quotes for a list of symbols and return top gainers and losers.
+    """
+    import asyncio
+
+    results: list[dict] = []
+
+    async def _safe_quote(sym: str) -> dict | None:
+        try:
+            return await get_stock_quote(sym)
+        except Exception:
+            return None
+
+    quotes = await asyncio.gather(*[_safe_quote(s) for s in symbols])
+
+    for q in quotes:
+        if q and q.get("current_price") and q.get("change_percent") is not None:
+            results.append(q)
+
+    # Sort by change_percent
+    results.sort(key=lambda x: x.get("change_percent", 0), reverse=True)
+
+    gainers = [
+        {
+            "symbol": r["symbol"],
+            "price": r["current_price"],
+            "change_percent": round(r["change_percent"], 2),
+        }
+        for r in results[:top_n]
+        if r.get("change_percent", 0) > 0
+    ]
+
+    losers = [
+        {
+            "symbol": r["symbol"],
+            "price": r["current_price"],
+            "change_percent": round(r["change_percent"], 2),
+        }
+        for r in results[-top_n:]
+        if r.get("change_percent", 0) < 0
+    ]
+    losers.reverse()  # worst first
+
+    return {"gainers": gainers, "losers": losers}
+
+
+async def build_enriched_market_context(
+    symbols: list[str] | None = None,
+    stock_names: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Build a rich market context with index data, top movers, stock-specific
+    quotes, and news — designed to feed the copilot LLM with actionable data.
+
+    Args:
+        symbols: Optional list of Finnhub symbols the user asked about.
+        stock_names: Optional list of human-readable stock names (for news queries).
+
+    Returns:
+        Dict with all fields from build_market_context() plus:
+        - top_gainers: Top gaining NIFTY stocks
+        - top_losers: Top losing NIFTY stocks
+        - stock_quotes: Quotes for specifically mentioned stocks
+        - data_summary: Human-readable text digest for the LLM
+    """
+    from market_query_analyzer import TOP_NIFTY_SYMBOLS
+    from news_fetcher import fetch_financial_news
+    import asyncio
+
+    # Start with basic market context
+    base_ctx = await build_market_context()
+
+    enriched = {**base_ctx}
+    enriched["top_gainers"] = []
+    enriched["top_losers"] = []
+    enriched["stock_quotes"] = {}
+
+    # Fetch top movers from curated NIFTY 50 list
+    try:
+        movers = await _fetch_top_movers(TOP_NIFTY_SYMBOLS, top_n=5)
+        enriched["top_gainers"] = movers.get("gainers", [])
+        enriched["top_losers"] = movers.get("losers", [])
+    except Exception as e:
+        print(f"[Enriched Context] Failed to fetch top movers: {e}")
+
+    # Fetch specific stock quotes if symbols were mentioned
+    if symbols:
+        # Exclude symbols already in the top movers list
+        extra_symbols = [s for s in symbols if s not in TOP_NIFTY_SYMBOLS]
+        all_symbols = symbols  # fetch all mentioned, even if in NIFTY list
+
+        async def _safe_quote(sym: str) -> tuple[str, dict | None]:
+            try:
+                q = await get_stock_quote(sym)
+                return sym, q
+            except Exception:
+                return sym, None
+
+        results = await asyncio.gather(*[_safe_quote(s) for s in all_symbols])
+        for sym, q in results:
+            if q:
+                enriched["stock_quotes"][sym] = {
+                    "symbol": sym,
+                    "price": q.get("current_price"),
+                    "change": q.get("change"),
+                    "change_percent": round(q.get("change_percent", 0), 2),
+                    "high": q.get("high"),
+                    "low": q.get("low"),
+                    "open": q.get("open"),
+                    "previous_close": q.get("previous_close"),
+                }
+
+        # Fetch stock-specific news
+        if stock_names:
+            try:
+                query = " OR ".join(stock_names[:3]) + " stock India"
+                stock_news = await fetch_financial_news(query, max_articles=5)
+                enriched["stock_news"] = [
+                    {"title": a.get("title", ""), "source": a.get("source", "")}
+                    for a in stock_news[:5]
+                ]
+            except Exception as e:
+                print(f"[Enriched Context] Failed to fetch stock news: {e}")
+
+    # Build human-readable summary for the LLM
+    enriched["data_summary"] = _build_data_summary(enriched)
+
+    return enriched
+
+
+def _build_data_summary(ctx: dict) -> str:
+    """Build a concise human-readable summary of the market data."""
+    parts: list[str] = []
+
+    direction = ctx.get("market_direction", "flat").upper()
+    parts.append(f"MARKET DIRECTION: {direction}")
+
+    # Index data
+    nifty = ctx.get("nifty")
+    if nifty and nifty.get("current_price"):
+        parts.append(
+            f"NIFTY 50: ₹{nifty['current_price']:,.2f} "
+            f"({nifty.get('change_percent', 0):+.2f}%)"
+        )
+
+    sensex = ctx.get("sensex")
+    if sensex and sensex.get("current_price"):
+        parts.append(
+            f"SENSEX: ₹{sensex['current_price']:,.2f} "
+            f"({sensex.get('change_percent', 0):+.2f}%)"
+        )
+
+    # Top movers
+    gainers = ctx.get("top_gainers", [])
+    if gainers:
+        g_str = ", ".join(
+            f"{g['symbol'].replace('.NS','')} ({g['change_percent']:+.2f}%)"
+            for g in gainers[:5]
+        )
+        parts.append(f"TOP GAINERS: {g_str}")
+
+    losers = ctx.get("top_losers", [])
+    if losers:
+        l_str = ", ".join(
+            f"{l['symbol'].replace('.NS','')} ({l['change_percent']:+.2f}%)"
+            for l in losers[:5]
+        )
+        parts.append(f"TOP LOSERS: {l_str}")
+
+    # Stock-specific data
+    stock_quotes = ctx.get("stock_quotes", {})
+    if stock_quotes:
+        for sym, q in stock_quotes.items():
+            parts.append(
+                f"{sym.replace('.NS','')}: ₹{q['price']:,.2f} "
+                f"({q['change_percent']:+.2f}%), "
+                f"Open: ₹{q.get('open', 0):,.2f}, "
+                f"High: ₹{q.get('high', 0):,.2f}, "
+                f"Low: ₹{q.get('low', 0):,.2f}"
+            )
+
+    # Headlines
+    headlines = ctx.get("news_headlines", [])
+    stock_news = ctx.get("stock_news", [])
+    all_headlines = headlines + stock_news
+    if all_headlines:
+        parts.append("RECENT HEADLINES:")
+        for i, h in enumerate(all_headlines[:8], 1):
+            parts.append(f"  {i}. {h.get('title', 'N/A')} — {h.get('source', 'Unknown')}")
+
+    return "\n".join(parts)
