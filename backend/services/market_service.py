@@ -288,3 +288,142 @@ async def get_market_news(category: str = "general", min_id: int = 0) -> list[di
 
     except Exception as e:
         raise ValueError(f"Error fetching market news: {str(e)}")
+
+
+async def get_index_quote(symbol: str) -> dict:
+    """
+    Fetch latest index quote (e.g., NIFTY, SENSEX) using Finnhub /quote endpoint.
+
+    Args:
+        symbol: Index symbol (e.g., "NSEI" for NIFTY, "BSESN" for SENSEX)
+
+    Returns:
+        Dict with fields: symbol, current_price, change, change_percent, 
+                        high, low, open, previous_close, timestamp
+
+    Raises:
+        ValueError: If API key is missing or symbol is invalid
+    """
+    api_key = os.getenv("FINNHUB_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "FINNHUB_API_KEY environment variable not set. "
+            "Please set your Finnhub API key from https://finnhub.io"
+        )
+
+    if not symbol or len(symbol.strip()) == 0:
+        raise ValueError("Symbol cannot be empty")
+
+    symbol = symbol.strip().upper()
+    if len(symbol) > 20:
+        raise ValueError("Symbol cannot be longer than 20 characters")
+
+    endpoint = "https://finnhub.io/api/v1/quote"
+    params = {
+        "symbol": symbol,
+        "token": api_key,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(endpoint, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            # Check if API returned an error
+            if "error" in data:
+                raise ValueError(f"Finnhub API error: {data['error']}")
+
+            # Check if valid data returned
+            if data.get("c") is None:
+                raise ValueError(f"Invalid symbol or no data available for {symbol}")
+
+            # Format response
+            formatted = {
+                "symbol": symbol,
+                "current_price": data.get("c", 0),
+                "change": data.get("d", 0),
+                "change_percent": data.get("dp", 0),
+                "high": data.get("h", 0),
+                "low": data.get("l", 0),
+                "open": data.get("o", 0),
+                "previous_close": data.get("pc", 0),
+                "timestamp": data.get("t", 0),
+            }
+
+            return formatted
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
+            raise ValueError("Finnhub API authentication failed. Check your API key.")
+        elif e.response.status_code == 429:
+            raise ValueError("Finnhub API rate limit exceeded. Try again later.")
+        else:
+            raise ValueError(f"Finnhub API request failed: {str(e)}")
+
+    except httpx.RequestError as e:
+        raise ValueError(f"Failed to connect to Finnhub API: {str(e)}")
+
+    except Exception as e:
+        raise ValueError(f"Error fetching index quote: {str(e)}")
+
+
+async def build_market_context() -> dict[str, Any]:
+    """
+    Build a market context object containing index data, market direction, and news headlines.
+
+    Returns:
+        Dict with fields:
+        - market_direction: "up", "down", or "flat" based on NIFTY change
+        - nifty: NIFTY index data (current_price, change, change_percent)
+        - sensex: SENSEX index data (current_price, change, change_percent)
+        - news_headlines: List of recent market news headlines
+        - timestamp: Current timestamp
+    """
+    from news_fetcher import fetch_financial_news
+
+    context = {
+        "market_direction": "flat",
+        "nifty": None,
+        "sensex": None,
+        "news_headlines": [],
+        "timestamp": int(datetime.now(timezone.utc).timestamp()),
+    }
+
+    # Fetch NIFTY data
+    try:
+        nifty = await get_index_quote("NSEI")
+        context["nifty"] = {
+            "current_price": nifty.get("current_price"),
+            "change": nifty.get("change"),
+            "change_percent": nifty.get("change_percent"),
+        }
+        if nifty.get("change_percent", 0) > 0.1:
+            context["market_direction"] = "up"
+        elif nifty.get("change_percent", 0) < -0.1:
+            context["market_direction"] = "down"
+    except Exception as e:
+        print(f"[Market Context] Failed to fetch NIFTY: {e}")
+
+    # Fetch SENSEX data
+    try:
+        sensex = await get_index_quote("BSESN")
+        context["sensex"] = {
+            "current_price": sensex.get("current_price"),
+            "change": sensex.get("change"),
+            "change_percent": sensex.get("change_percent"),
+        }
+    except Exception as e:
+        print(f"[Market Context] Failed to fetch SENSEX: {e}")
+
+    # Fetch market news
+    try:
+        news = await fetch_financial_news("Indian stock market NIFTY SENSEX", max_articles=5)
+        context["news_headlines"] = [
+            {"title": article.get("title", ""), "source": article.get("source", "")}
+            for article in news[:5]
+        ]
+    except Exception as e:
+        print(f"[Market Context] Failed to fetch news: {e}")
+
+    return context

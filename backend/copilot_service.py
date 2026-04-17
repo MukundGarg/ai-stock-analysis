@@ -40,10 +40,45 @@ Your role:
 """
     if workspace_context:
         try:
-            ctx = json.dumps(workspace_context, ensure_ascii=False, indent=2)[:12000]
+            # Check if market_data is available
+            if "market_data" in workspace_context:
+                market_data = workspace_context["market_data"]
+                market_section = f"""
+### Current Market Context (Live Data)
+- Market Direction: {market_data.get('market_direction', 'unknown').upper()}
+- NIFTY: {market_data.get('nifty', {}).get('current_price', 'N/A')} (Change: {market_data.get('nifty', {}).get('change_percent', 0):.2f}%)
+- SENSEX: {market_data.get('sensex', {}).get('current_price', 'N/A')} (Change: {market_data.get('sensex', {}).get('change_percent', 0):.2f}%)
+"""
+                headlines = market_data.get('news_headlines', [])
+                if headlines:
+                    market_section += "\n### Recent Market Headlines\n"
+                    for i, headline in enumerate(headlines[:3], 1):
+                        market_section += f"{i}. {headline.get('title', '')} ({headline.get('source', 'Unknown')})\n"
+                
+                base += market_section + "\n"
+                
+                # Remove market_data from workspace_context to avoid duplicate display
+                other_context = {k: v for k, v in workspace_context.items() if k != 'market_data'}
+                if other_context:
+                    ctx = json.dumps(other_context, ensure_ascii=False, indent=2)[:12000]
+                    base += f"""
+### Current workspace context (from the user's recent tool runs — use only as background; user may ask follow-ups)
+```json
+{ctx}
+```
+"""
+            else:
+                ctx = json.dumps(workspace_context, ensure_ascii=False, indent=2)[:12000]
+                base += f"""
+
+### Current workspace context (from the user's recent tool runs — use only as background; user may ask follow-ups)
+```json
+{ctx}
+```
+"""
         except Exception:
             ctx = str(workspace_context)[:12000]
-        base += f"""
+            base += f"""
 
 ### Current workspace context (from the user's recent tool runs — use only as background; user may ask follow-ups)
 ```json

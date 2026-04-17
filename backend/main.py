@@ -211,10 +211,33 @@ async def learn_indian_markets():
 @app.post("/copilot/chat", response_model=CopilotResponse)
 async def copilot_chat_endpoint(body: CopilotRequest):
     try:
+        # Detect if question is market-related
+        message_lower = body.message.lower()
+        market_keywords = [
+            "market", "nifty", "sensex", "index", "up today", "down today", 
+            "falling", "rising", "why is", "what is driving", "stock market",
+            "trend", "movement", "gainers", "losers"
+        ]
+        is_market_question = any(keyword in message_lower for keyword in market_keywords)
+
+        # Fetch market context if question is market-related
+        market_context = None
+        if is_market_question:
+            try:
+                from services.market_service import build_market_context
+                market_context = await build_market_context()
+            except Exception as e:
+                print(f"[Copilot] Failed to fetch market context: {e}")
+
+        # Merge market context with workspace context
+        combined_context = body.workspace_context or {}
+        if market_context:
+            combined_context["market_data"] = market_context
+
         reply, sid, model = copilot_chat(
             body.message,
             body.session_id,
-            body.workspace_context,
+            combined_context,
         )
         return CopilotResponse(reply=reply, session_id=sid, model=model)
     except ValueError as e:
